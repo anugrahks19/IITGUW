@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { AlertTriangle, CheckCircle, Info, XCircle, ArrowRight, RefreshCw, BarChart2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle, XCircle, ArrowRight, RefreshCw, BarChart2 } from 'lucide-react';
 import type { AnalysisResult } from '../../services/openrouter';
 
 interface DecisionCardProps {

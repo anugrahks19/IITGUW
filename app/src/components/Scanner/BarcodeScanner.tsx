@@ -8,7 +8,7 @@ interface BarcodeScannerProps {
     onStatusChange?: (status: string) => void;
 }
 
-const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onClose, onStatusChange }) => {
+const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChange }) => {
     const scannerRef = useRef<Html5Qrcode | null>(null);
     const [error, setError] = useState<string>("");
     const didInit = useRef(false);

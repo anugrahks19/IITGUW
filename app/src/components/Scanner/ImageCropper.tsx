@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
+import React, { useState, useRef } from 'react';
+import ReactCrop, { centerCrop } from 'react-image-crop';
 import type { Crop, PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { Check, X } from 'lucide-react';
@@ -8,27 +8,6 @@ interface ImageCropperProps {
     imageSrc: string;
     onCropComplete: (croppedImage: string) => void;
     onCancel: () => void;
-}
-
-// Helper to center the crop initially
-function centerAspectCrop(
-    mediaWidth: number,
-    mediaHeight: number,
-    aspect: number,
-) {
-    return centerCrop(
-        makeAspectCrop(
-            {
-                unit: '%',
-                width: 90,
-            },
-            aspect,
-            mediaWidth,
-            mediaHeight,
-        ),
-        mediaWidth,
-        mediaHeight,
-    )
 }
 
 const ImageCropper: React.FC<ImageCropperProps> = ({ imageSrc, onCropComplete, onCancel }) => {

@@ -142,7 +142,6 @@ export const VoiceAssistant: React.FC<VoiceProps> = ({ onNavigate }) => {
 
         // Kill Mic
         try { recognitionRef.current?.stop(); } catch (e) { }
-        setIsListening(false);
     };
 
     // 🧠 PROCESSING LOGIC

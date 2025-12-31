@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, BookOpen, ExternalLink } from 'lucide-react';
+import { X, BookOpen } from 'lucide-react';
 import type { AnalysisResult } from '../../services/openrouter';
 
 interface ProvenanceModalProps {
