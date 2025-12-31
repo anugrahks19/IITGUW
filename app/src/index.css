@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-950 text-slate-50 antialiased;
+  }
+}
+
+/* Force Html5Quagga/Qrcode video to cover container */
+#reader-stream video {
+  object-fit: cover !important;
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 0 !important;
+}
+
+/* Mobile height fix */
+@supports (-webkit-touch-callout: none) {
+  .h-screen {
+    height: -webkit-fill-available;
+  }
+}
+
+/* Hide scrollbar */
+::-webkit-scrollbar {
+  width: 0px;
+}
+
+/* Custom Animations */
+@keyframes scan-fast {
+  0% {
+    transform: translateY(-100%);
+  }
+
+  100% {
+    transform: translateY(200%);
+  }
+}
+
+.animate-scan-fast {
+  animation: scan-fast 1.5s linear infinite;
+}
