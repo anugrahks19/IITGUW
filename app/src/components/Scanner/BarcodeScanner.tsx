@@ -1,145 +1,240 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import Webcam from 'react-webcam';
-import { motion } from 'framer-motion';
+import React, { useEffect, useRef, useState } from 'react';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface BarcodeScannerProps {
-    onResult: (result: string) => void;
+    onResult: (barcode: string) => void;
     onClose: () => void;
     onStatusChange?: (status: string) => void;
 }
 
 const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChange }) => {
-    const webcamRef = useRef<Webcam>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [hasNativeSupport, setHasNativeSupport] = useState<boolean>(true);
-    const [scanning, setScanning] = useState(true);
+    const scannerRef = useRef<Html5Qrcode | null>(null);
+    const [error, setError] = useState<string>("");
+    const didInit = useRef(false);
 
-    const checkSupport = useCallback(async () => {
-        if (!('BarcodeDetector' in window)) {
-            console.warn("Native BarcodeDetector not supported.");
-            setHasNativeSupport(false);
-            if (onStatusChange) onStatusChange("Live Scan Unavailable. Tap Circle to Photo-Scan.");
-            return false;
-        }
-        return true;
-    }, [onStatusChange]);
+    // Stability & Tracking State
+    const scanCountRef = useRef(0);
+    const lastCodeRef = useRef("");
+    const [trackingRect, setTrackingRect] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
+    const [scanProgress, setScanProgress] = useState(0); // 0 to 5
 
     useEffect(() => {
-        let interval: ReturnType<typeof setInterval>;
-        let detector: any;
+        if (didInit.current) return;
+        didInit.current = true;
 
-        const startScanning = async () => {
-            const supported = await checkSupport();
-            if (!supported) return;
+        const scannerId = "reader-stream";
+        const html5QrCode = new Html5Qrcode(scannerId);
+        scannerRef.current = html5QrCode;
 
+        // 📸 CAMERA CONFIGURATION
+        const config = {
+            fps: 15,
+            qrbox: { width: 250, height: 150 }, // Force box size for scanning region
+            useBarCodeDetectorIfSupported: true,
+            aspectRatio: 1.0,
+            videoConstraints: {
+                facingMode: { ideal: "environment" },
+                width: { min: 640, ideal: 1920, max: 3840 }, // Request 4K/1080p for better lens usage
+                height: { min: 480, ideal: 1080, max: 2160 },
+                // @ts-ignore - Focus mode is experimental but supported in Chrome Android
+                advanced: [{ focusMode: "continuous" }] as any[]
+            },
+            formatsToSupport: [
+                Html5QrcodeSupportedFormats.EAN_13,
+                Html5QrcodeSupportedFormats.EAN_8,
+                Html5QrcodeSupportedFormats.UPC_A,
+                Html5QrcodeSupportedFormats.UPC_E,
+                Html5QrcodeSupportedFormats.CODE_128
+            ]
+        };
+
+        const startScanner = async () => {
             try {
-                // @ts-ignore - Native Chrome/Android API
-                detector = new window.BarcodeDetector({
-                    formats: ['qr_code', 'ean_13', 'ean_8', 'upc_a', 'upc_e']
-                });
+                // Check if running on HTTP (not localhost) - Common Mobile Issue
+                const isSecure = window.isSecureContext;
+                if (!isSecure) {
+                    setError("⚠️ Camera requires HTTPS (or localhost). Mobile browsers block camera on HTTP.");
+                    return;
+                }
 
-                if (onStatusChange) onStatusChange("Searching...");
+                await html5QrCode.start(
+                    { facingMode: "environment" },
+                    config,
+                    (decodedText, result: any) => {
+                        // --- 1. COORDINATE MAPPING ---
+                        if (result?.resultPoints && result.resultPoints.length > 0) {
+                            calculateBoundingBox(result.resultPoints);
+                        } else {
+                            setTrackingRect(null);
+                        }
 
-                interval = setInterval(async () => {
-                    if (!webcamRef.current || !webcamRef.current.video || !scanning) return;
-
-                    const video = webcamRef.current.video;
-                    if (video.readyState !== 4) return;
-
-                    try {
-                        const barcodes = await detector.detect(video);
-                        if (barcodes && barcodes.length > 0) {
-                            const code = barcodes[0].rawValue;
-                            if (code) {
-                                console.log("Detected:", code);
-                                setScanning(false);
-                                if (onStatusChange) onStatusChange("Verified!");
-                                onResult(code);
-                                clearInterval(interval);
+                        // --- 2. STABILITY LOGIC ---
+                        if (decodedText !== lastCodeRef.current) {
+                            lastCodeRef.current = decodedText;
+                            scanCountRef.current = 1;
+                            setScanProgress(1);
+                            onStatusChange?.("Detecting Barcode...");
+                        } else {
+                            scanCountRef.current += 1;
+                            setScanProgress(Math.min(scanCountRef.current, 5));
+                            if (scanCountRef.current < 5) {
+                                onStatusChange?.("Scanning...");
                             }
                         }
-                    } catch (e) {
-                        // Silent fail on frame
-                    }
-                }, 500); // 2FPS is enough for barcode
 
-            } catch (e) {
-                console.warn("BarcodeDetector Init Failed", e);
-                setHasNativeSupport(false);
+                        // --- 3. FINAL VALIDATION (5 Frames) ---
+                        if (scanCountRef.current === 5) {
+                            onStatusChange?.("Verified!");
+                            setTimeout(() => {
+                                stopScanner(html5QrCode).then(() => {
+                                    onResult(decodedText);
+                                });
+                            }, 2000);
+                        }
+                    },
+                    (_) => {
+                        // Scan Failure (Normal - just ignore)
+                        setTrackingRect(null);
+                    }
+                );
+            } catch (err: any) {
+                console.error("[BarcodeScanner] Start Error", err);
+                if (err?.name === "NotAllowedError") {
+                    setError("🚫 Camera Permission Denied. Please reset permissions.");
+                } else if (err?.name === "NotFoundError") {
+                    setError("📷 No Camera Found.");
+                } else {
+                    setError(`Camera Error: ${err.message || "Unknown error"}`);
+                }
             }
         };
 
-        startScanning();
+        startScanner();
 
         return () => {
-            if (interval) clearInterval(interval);
+            if (html5QrCode.isScanning) {
+                stopScanner(html5QrCode);
+            }
         };
-    }, [checkSupport, onResult, onStatusChange, scanning]);
+    }, []);
 
+    const calculateBoundingBox = (points: Array<any>) => {
+        // Points are in Video Source Coordinates
+        const videoElement = document.querySelector("#reader-stream video") as HTMLVideoElement;
+        if (!videoElement) return;
+
+        const videoW = videoElement.videoWidth;
+        const videoH = videoElement.videoHeight;
+        const clientW = videoElement.clientWidth;
+        const clientH = videoElement.clientHeight;
+
+        if (videoW === 0 || videoH === 0) return;
+
+        // "object-fit: cover" Logic
+        const scale = Math.max(clientW / videoW, clientH / videoH);
+
+        const drawnW = videoW * scale;
+        // const drawnH = videoH * scale; // Unused
+        const offX = (clientW - drawnW) / 2;
+        const offY = (clientH - (videoH * scale)) / 2;
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        points.forEach(p => {
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
+        });
+
+        const x = minX * scale + offX;
+        const y = minY * scale + offY;
+        const w = (maxX - minX) * scale;
+        const h = (maxY - minY) * scale;
+
+        setTrackingRect({ x, y, w, h });
+    };
+
+    const stopScanner = async (instance: Html5Qrcode) => {
+        try {
+            if (instance.isScanning) {
+                await instance.stop();
+            }
+            instance.clear();
+        } catch (err) {
+            console.warn("Stop Warning", err);
+        }
+    };
 
     return (
-        <div className="absolute inset-0 bg-black flex items-center justify-center overflow-hidden">
-            {/* 1. WEBCAM FEED (Robust) */}
-            <Webcam
-                ref={webcamRef}
-                audio={false}
-                screenshotFormat="image/jpeg"
-                videoConstraints={{
-                    facingMode: "environment",
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 }
-                }}
-                className="absolute inset-0 w-full h-full object-cover"
-                onUserMedia={() => {
-                    console.log("Webcam Started");
-                    if (onStatusChange && hasNativeSupport) onStatusChange("Scanning...");
-                }}
-                onUserMediaError={(e) => {
-                    console.error("Webcam Error", e);
-                    setError("Camera Blocked. Check Permissions.");
-                }}
-            />
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-0 bg-black flex items-center justify-center pointer-events-none"
+        >
+            {/* Viewport */}
+            <div id="reader-stream" className="w-full h-full absolute inset-0 object-cover pointer-events-auto" />
 
-            {/* 2. OVERLAY UI */}
-            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
+            {/* TRACKING OVERLAY */}
+            <AnimatePresence>
+                {/* Show if we have a rect OR if we have progress (fallback) */}
+                {scanProgress > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 1.1 }}
+                        animate={{
+                            opacity: 1,
+                            scale: 1,
+                            // If tracking, use pixels. If fallback, use 0 and rely on CSS centering.
+                            x: trackingRect ? trackingRect.x : 0,
+                            y: trackingRect ? trackingRect.y : 0,
+                            width: trackingRect ? trackingRect.w : 250,
+                            height: trackingRect ? trackingRect.h : 150,
+                            left: trackingRect ? 0 : '50%',
+                            top: trackingRect ? 0 : '50%',
+                            translateX: trackingRect ? 0 : '-50%',
+                            translateY: trackingRect ? 0 : '-50%'
+                        }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.1, ease: "easeOut" }}
+                        className="absolute z-20 pointer-events-none"
+                    >
+                        {/* Animated Border Box */}
+                        <div className="w-full h-full relative">
+                            {/* Base Border */}
+                            <div className="absolute inset-0 border-2 border-white/50 rounded-lg" />
 
-                {/* SCAN FRAME */}
-                <motion.div
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="w-64 h-40 border-2 border-white/50 rounded-lg relative overflow-hidden bg-white/5"
-                >
-                    <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-brand-500 rounded-tl-lg" />
-                    <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-brand-500 rounded-tr-lg" />
-                    <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-brand-500 rounded-bl-lg" />
-                    <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-brand-500 rounded-br-lg" />
+                            {/* Progress Border (Fills up) */}
+                            <motion.div
+                                className={`absolute inset-0 border-[4px] rounded-lg shadow-[0_0_20px_rgba(255,165,0,0.6)] ${scanProgress === 5 ? 'border-green-500 shadow-green-500/50' : 'border-brand-500'}`}
+                                initial={{ clipPath: 'inset(0 100% 0 0)' }}
+                                animate={{ clipPath: `inset(0 ${100 - (scanProgress * 20)}% 0 0)` }}
+                                transition={{ duration: 0.1 }}
+                            />
 
-                    {scanning && hasNativeSupport && (
-                        <motion.div
-                            className="absolute inset-x-0 h-0.5 bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.8)]"
-                            animate={{ top: ['0%', '100%', '0%'] }}
-                            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                        />
-                    )}
-                </motion.div>
+                            {/* Scanning Scanline inside the box */}
+                            <div className="absolute inset-0 overflow-hidden rounded-lg opacity-30">
+                                <div className={`w-full h-[50%] bg-gradient-to-b animate-scan-fast ${scanProgress === 5 ? 'from-green-500/0 via-green-500/50 to-green-500/0' : 'from-brand-500/0 via-brand-500/50 to-brand-500/0'}`} />
+                            </div>
+                        </div>
 
-                {/* ERROR MESSAGE */}
-                {error && (
-                    <div className="absolute bottom-40 bg-red-600/90 text-white px-4 py-2 rounded-lg">
-                        {error}
-                    </div>
+                        {/* Label */}
+                        <div className="absolute -top-6 left-0 right-0 flex justify-center">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${scanProgress === 5 ? 'bg-green-500 text-black' : 'bg-brand-500 text-black'}`}>
+                                {scanProgress === 5 ? "SCANNED!" : "DETECTING..."}
+                            </span>
+                        </div>
+                    </motion.div>
                 )}
+            </AnimatePresence>
 
-                {/* NO SUPPORT MESSAGE */}
-                {!hasNativeSupport && !error && (
-                    <div className="absolute top-32 bg-black/60 text-white/90 px-4 py-2 rounded-full text-xs backdrop-blur">
-                        Live Scan Unavailable on this device.
-                        <br />
-                        <span className="font-bold text-brand-300">Use the White Button below to snap!</span>
-                    </div>
-                )}
-            </div>
-        </div>
+            {/* ERROR */}
+            {error && (
+                <div className="absolute bottom-20 bg-black/80 px-4 py-2 rounded-full border border-red-500/50">
+                    <p className="text-red-400 text-xs">{error}</p>
+                </div>
+            )}
+        </motion.div>
     );
 };
 
