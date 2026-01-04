@@ -27,9 +27,19 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
         const html5QrCode = new Html5Qrcode(scannerId);
         scannerRef.current = html5QrCode;
 
+        // 📸 CAMERA CONFIGURATION
         const config = {
             fps: 15,
-            useBarCodeDetectorIfSupported: true, // TRYING NATIVE API FOR BETTER TRACKING
+            qrbox: { width: 250, height: 150 }, // Force box size for scanning region
+            useBarCodeDetectorIfSupported: true,
+            aspectRatio: 1.0,
+            videoConstraints: {
+                facingMode: { ideal: "environment" },
+                width: { min: 640, ideal: 1920, max: 3840 }, // Request 4K/1080p for better lens usage
+                height: { min: 480, ideal: 1080, max: 2160 },
+                // @ts-ignore - Focus mode is experimental but supported in Chrome Android
+                advanced: [{ focusMode: "continuous" }] as any[]
+            },
             formatsToSupport: [
                 Html5QrcodeSupportedFormats.EAN_13,
                 Html5QrcodeSupportedFormats.EAN_8,
@@ -39,54 +49,68 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
             ]
         };
 
-        html5QrCode.start(
-            { facingMode: "environment" },
-            config,
-            (decodedText, result: any) => {
-                // --- 1. COORDINATE MAPPING ---
-                if (result?.resultPoints && result.resultPoints.length > 0) {
-                    calculateBoundingBox(result.resultPoints);
-                } else {
-                    // FALLBACK: If no points returned use CSS centering logic in render.
-                    // We just set trackingRect to null to trigger fallback mode.
-                    setTrackingRect(null);
+        const startScanner = async () => {
+            try {
+                // Check if running on HTTP (not localhost) - Common Mobile Issue
+                const isSecure = window.isSecureContext;
+                if (!isSecure) {
+                    setError("⚠️ Camera requires HTTPS (or localhost). Mobile browsers block camera on HTTP.");
+                    return;
                 }
 
-                // --- 2. STABILITY LOGIC ---
-                if (decodedText !== lastCodeRef.current) {
-                    lastCodeRef.current = decodedText;
-                    scanCountRef.current = 1;
-                    setScanProgress(1);
-                    onStatusChange?.("Detecting Barcode...");
-                } else {
-                    scanCountRef.current += 1;
-                    setScanProgress(Math.min(scanCountRef.current, 5));
-                    if (scanCountRef.current < 5) {
-                        onStatusChange?.("Scanning...");
+                await html5QrCode.start(
+                    { facingMode: "environment" },
+                    config,
+                    (decodedText, result: any) => {
+                        // --- 1. COORDINATE MAPPING ---
+                        if (result?.resultPoints && result.resultPoints.length > 0) {
+                            calculateBoundingBox(result.resultPoints);
+                        } else {
+                            setTrackingRect(null);
+                        }
+
+                        // --- 2. STABILITY LOGIC ---
+                        if (decodedText !== lastCodeRef.current) {
+                            lastCodeRef.current = decodedText;
+                            scanCountRef.current = 1;
+                            setScanProgress(1);
+                            onStatusChange?.("Detecting Barcode...");
+                        } else {
+                            scanCountRef.current += 1;
+                            setScanProgress(Math.min(scanCountRef.current, 5));
+                            if (scanCountRef.current < 5) {
+                                onStatusChange?.("Scanning...");
+                            }
+                        }
+
+                        // --- 3. FINAL VALIDATION (5 Frames) ---
+                        if (scanCountRef.current === 5) {
+                            onStatusChange?.("Verified!");
+                            setTimeout(() => {
+                                stopScanner(html5QrCode).then(() => {
+                                    onResult(decodedText);
+                                });
+                            }, 2000);
+                        }
+                    },
+                    (_) => {
+                        // Scan Failure (Normal - just ignore)
+                        setTrackingRect(null);
                     }
+                );
+            } catch (err: any) {
+                console.error("[BarcodeScanner] Start Error", err);
+                if (err?.name === "NotAllowedError") {
+                    setError("🚫 Camera Permission Denied. Please reset permissions.");
+                } else if (err?.name === "NotFoundError") {
+                    setError("📷 No Camera Found.");
+                } else {
+                    setError(`Camera Error: ${err.message || "Unknown error"}`);
                 }
-
-                // --- 3. FINAL VALIDATION (5 Frames) ---
-                if (scanCountRef.current === 5) {
-                    // Success!
-                    onStatusChange?.("Verified!");
-
-                    // 2-Second Delay for "Green Animation" effect
-                    setTimeout(() => {
-                        stopScanner(html5QrCode).then(() => {
-                            onResult(decodedText);
-                        });
-                    }, 2000);
-                }
-            },
-            (_) => {
-                // FAILURE CALLBACK
-                setTrackingRect(null);
             }
-        ).catch(err => {
-            console.error("[BarcodeScanner] Start Error", err);
-            setError("Camera busy. Please check permissions.");
-        });
+        };
+
+        startScanner();
 
         return () => {
             if (html5QrCode.isScanning) {

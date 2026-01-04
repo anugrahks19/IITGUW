@@ -10,17 +10,18 @@ const SITE_TITLE = "ShelfSense";
 
 // 🧠 MODEL LIST (Strategy: Speed (Groq) -> Reliability -> Fallback)
 const MODELS = [
-    // 1. ULTRA-FAST (Groq / Wireless Voice Speed)
+    // 1. PREMIUM / PAID MODELS (Highest Reliability)
+    "openai/gpt-4o",
+    "anthropic/claude-3.5-sonnet",
+    "google/gemini-pro-1.5",
+
+    // 2. ULTRA-FAST (Groq)
     "groq/llama-3-70b-8192",
 
-    // 2. FREE TIER (Fastest, usually works)
+    // 3. FREE TIER (Backups)
     "google/gemini-2.0-flash-exp:free",
-
-    // 3. STANDARD TIER (Reliable)
     "google/gemini-flash-1.5",
     "openai/gpt-4o-mini",
-
-    // 4. FREE BACKUPS
     "meta-llama/llama-3.2-90b-vision-instruct:free",
     "qwen/qwen-2-vl-72b-instruct:free",
 ];
@@ -98,6 +99,12 @@ async function callBackend(
     for (const model of MODELS) {
         try {
             console.log(`🚀 OpenRouter Trying: ${model}...`);
+            // DEBUG: Check Key (Masked)
+            if (API_KEY) {
+                console.log(`🔑 Using Key: ${API_KEY.substring(0, 8)}...`);
+            } else {
+                console.error("❌ NO API KEY FOUND");
+            }
 
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s Timeout
@@ -133,8 +140,15 @@ async function callBackend(
                 }
             } else {
                 const errText = await response.text();
-                console.warn(`⚠️ ${model} Failed:`, response.status, errText);
-                errorLog.push(`${model}: ${response.status}`);
+                // 🛑 CRITICAL Log for Debugging
+                console.error(`❌ ${model} ERROR ${response.status}:`, errText);
+
+                // Specific Check for 401
+                if (response.status === 401) {
+                    console.error("🚨 401 UNAUTHORIZED: Please check VITE_OPENROUTER_API_KEY in .env. It might be invalid, expired, or have 0 credits.");
+                }
+
+                errorLog.push(`${model}: ${response.status} - ${errText.substring(0, 100)}`); // Store brief error
 
                 // If 402 (Payment) stop immediately
                 if (response.status === 402) {
