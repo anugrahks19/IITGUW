@@ -19,6 +19,8 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
     const [trackingRect, setTrackingRect] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
     const [scanProgress, setScanProgress] = useState(0); // 0 to 5
 
+    const [startStatus, setStartStatus] = useState<string>("Initializing Camera...");
+
     useEffect(() => {
         if (didInit.current) return;
         didInit.current = true;
@@ -31,7 +33,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
         const config4K = {
             fps: 15,
             qrbox: { width: 250, height: 150 },
-            aspectRatio: 1.0,
+            // aspectRatio: 1.0, // REMOVED: Can cause black screen on some mobile viewports
             videoConstraints: {
                 facingMode: { ideal: "environment" },
                 width: { min: 640, ideal: 1920, max: 3840 },
@@ -43,33 +45,38 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
         const configBasic = {
             fps: 15,
             qrbox: { width: 250, height: 150 },
-            aspectRatio: 1.0,
             videoConstraints: {
                 facingMode: "environment" // Minimal constraint
             },
         };
 
         const startScanner = async () => {
+            setStartStatus("Checking HTTPS...");
             // 🔒 HTTPS CHECK
             if (!window.isSecureContext) {
                 setError("⚠️ Camera requires HTTPS. Mobile browsers block it on HTTP.");
-                // Still try to start (might work on localhost), but warn.
+                setStartStatus("Error: HTTP Insecure");
             }
 
             try {
                 // 1️⃣ TRY PRO MODE (4K / Focus)
+                setStartStatus("Starting Pro Camera...");
                 console.log("📸 Trying Pro Camera Mode...");
                 await html5QrCode.start({ facingMode: "environment" }, config4K, onScanSuccess, onScanFailure);
+                setStartStatus(""); // Clear status on success
             } catch (err: any) {
                 console.warn("⚠️ Pro Camera Failed:", err);
+                setStartStatus(`Pro Failed (${err.name}). Retrying Basic...`);
 
                 try {
                     // 2️⃣ FALLBACK TO BASIC MODE (Compatibility)
                     console.log("🔄 Fallback to Basic Camera Mode...");
                     await html5QrCode.start({ facingMode: "environment" }, configBasic, onScanSuccess, onScanFailure);
+                    setStartStatus(""); // Clear status on success
                 } catch (err2: any) {
                     console.error("❌ Basic Camera Failed:", err2);
                     handleCameraError(err2);
+                    setStartStatus("Camera Failed completely.");
                 }
             }
         };
@@ -113,15 +120,15 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
 
         const handleCameraError = (err: any) => {
             if (err?.name === "NotAllowedError") {
-                setError("🚫 Camera Permission Denied. Please reset permissions in browser settings.");
+                setError("🚫 Permission Denied.");
             } else if (err?.name === "NotFoundError" || err?.name === "DevicesNotFoundError") {
-                setError("📷 No Camera Found on this device.");
+                setError("📷 No Camera Found.");
             } else if (err?.name === "NotReadableError") {
-                setError("⚠️ Camera is in use by another app.");
+                setError("⚠️ Camera in use.");
             } else if (err?.name === "OverconstrainedError") {
-                setError("⚠️ Camera constraints not supported.");
+                setError("⚠️ Camera Constraints Failed.");
             } else {
-                setError(`Camera Error: ${err.message || "Unknown error"}`);
+                setError(`Error: ${err.message || "Unknown"}`);
             }
         };
 
@@ -188,8 +195,26 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
             exit={{ opacity: 0 }}
             className="absolute inset-0 z-0 bg-black flex items-center justify-center pointer-events-none"
         >
+            {/* FORCE VIDEO CSS: Ensure video fills the container */}
+            <style>{`
+                #reader-stream video {
+                    width: 100% !important;
+                    height: 100% !important;
+                    object-fit: cover !important;
+                }
+            `}</style>
+
             {/* Viewport */}
             <div id="reader-stream" className="w-full h-full absolute inset-0 object-cover pointer-events-auto" />
+
+            {/* DEBUG STATUS (Only shows if something is happening/stuck) */}
+            {startStatus && (
+                <div className="absolute top-20 left-0 right-0 z-50 flex justify-center">
+                    <div className="bg-black/50 text-white px-3 py-1 rounded-full text-xs backdrop-blur-md border border-white/20">
+                        ℹ️ {startStatus}
+                    </div>
+                </div>
+            )}
 
             {/* TRACKING OVERLAY */}
             <AnimatePresence>
