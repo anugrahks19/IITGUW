@@ -8,20 +8,18 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const SITE_URL = window.location.origin;
 const SITE_TITLE = "ShelfSense";
 
-// 🧠 MODEL LIST (Strategy: Speed (Groq) -> Reliability -> Fallback)
+// 🧠 MODEL LIST (Vision Capable Mixed List)
 const MODELS = [
-    // 1. PREMIUM / PAID MODELS (Highest Reliability)
-    "openai/gpt-4o",
-    "anthropic/claude-3.5-sonnet",
-    "google/gemini-pro-1.5",
+    // 1. USER-REQUESTED FREE VISION MODELS (Gemma 3)
+    "google/gemma-3-12b-it:free",
+    "google/gemma-3-4b-it:free",
+    "google/gemma-3n-4b-it:free",
 
-    // 2. ULTRA-FAST (Groq)
-    "groq/llama-3-70b-8192",
-
-    // 3. FREE TIER (Backups)
+    // 2. RELIABLE BACKUPS (Vision-Capable & Free)
     "google/gemini-2.0-flash-exp:free",
     "google/gemini-flash-1.5",
-    "openai/gpt-4o-mini",
+
+    // 3. FALLBACKS
     "meta-llama/llama-3.2-90b-vision-instruct:free",
     "qwen/qwen-2-vl-72b-instruct:free",
 ];
@@ -107,7 +105,7 @@ async function callBackend(
             }
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s Timeout
+            const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s Timeout
 
             const response = await fetch(OPENROUTER_API_URL, {
                 method: 'POST',
@@ -227,15 +225,19 @@ export const analyzeImageWithAI = async (base64Image: string, productName?: stri
     let result;
 
     if (isBlankImage || hasIngredients) {
-        console.log("ℹ️ Text-Mode Analysis...");
+        console.log("ℹ️ Text-Mode Analysis (Ingredients found or Blank Image)...");
         result = await callBackend(
             [{ role: "user", content: prompt }], // Plain text content
             true
         );
     } else {
+        // 📸 VISION MODE
+        console.log("📸 Vision Mode (Scanning Image)...");
+
         // 📉 Compress before sending!
         const compressedUrl = await compressImage(base64Image);
 
+        // Try AI Vision
         result = await callBackend(
             [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: compressedUrl } }] }],
             true
@@ -243,7 +245,8 @@ export const analyzeImageWithAI = async (base64Image: string, productName?: stri
     }
 
     if (!result) {
-        throw new Error("Unexpected Error: AI returned no content.");
+        // Fallback: If AI returned null (all failed), throw.
+        throw new Error("All AI Models failed to analyze the product.");
     }
 
     try {
