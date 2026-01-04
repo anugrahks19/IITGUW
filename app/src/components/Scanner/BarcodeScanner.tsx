@@ -27,86 +27,101 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
         const html5QrCode = new Html5Qrcode(scannerId);
         scannerRef.current = html5QrCode;
 
-        // 📸 CAMERA CONFIGURATION
-        const config = {
+        // 📸 CAMERA CONFIGS
+        const config4K = {
             fps: 15,
-            qrbox: { width: 250, height: 150 }, // Force box size for scanning region
-            useBarCodeDetectorIfSupported: true,
+            qrbox: { width: 250, height: 150 },
             aspectRatio: 1.0,
             videoConstraints: {
                 facingMode: { ideal: "environment" },
-                width: { min: 640, ideal: 1920, max: 3840 }, // Request 4K/1080p for better lens usage
+                width: { min: 640, ideal: 1920, max: 3840 },
                 height: { min: 480, ideal: 1080, max: 2160 },
-                // @ts-ignore - Focus mode is experimental but supported in Chrome Android
                 advanced: [{ focusMode: "continuous" }] as any[]
             },
-            formatsToSupport: [
-                Html5QrcodeSupportedFormats.EAN_13,
-                Html5QrcodeSupportedFormats.EAN_8,
-                Html5QrcodeSupportedFormats.UPC_A,
-                Html5QrcodeSupportedFormats.UPC_E,
-                Html5QrcodeSupportedFormats.CODE_128
-            ]
+        };
+
+        const configBasic = {
+            fps: 15,
+            qrbox: { width: 250, height: 150 },
+            aspectRatio: 1.0,
+            videoConstraints: {
+                facingMode: "environment" // Minimal constraint
+            },
         };
 
         const startScanner = async () => {
+            // 🔒 HTTPS CHECK
+            if (!window.isSecureContext) {
+                setError("⚠️ Camera requires HTTPS. Mobile browsers block it on HTTP.");
+                // Still try to start (might work on localhost), but warn.
+            }
+
             try {
-                // Check if running on HTTP (not localhost) - Common Mobile Issue
-                const isSecure = window.isSecureContext;
-                if (!isSecure) {
-                    setError("⚠️ Camera requires HTTPS (or localhost). Mobile browsers block camera on HTTP.");
-                    return;
-                }
-
-                await html5QrCode.start(
-                    { facingMode: "environment" },
-                    config,
-                    (decodedText, result: any) => {
-                        // --- 1. COORDINATE MAPPING ---
-                        if (result?.resultPoints && result.resultPoints.length > 0) {
-                            calculateBoundingBox(result.resultPoints);
-                        } else {
-                            setTrackingRect(null);
-                        }
-
-                        // --- 2. STABILITY LOGIC ---
-                        if (decodedText !== lastCodeRef.current) {
-                            lastCodeRef.current = decodedText;
-                            scanCountRef.current = 1;
-                            setScanProgress(1);
-                            onStatusChange?.("Detecting Barcode...");
-                        } else {
-                            scanCountRef.current += 1;
-                            setScanProgress(Math.min(scanCountRef.current, 5));
-                            if (scanCountRef.current < 5) {
-                                onStatusChange?.("Scanning...");
-                            }
-                        }
-
-                        // --- 3. FINAL VALIDATION (5 Frames) ---
-                        if (scanCountRef.current === 5) {
-                            onStatusChange?.("Verified!");
-                            setTimeout(() => {
-                                stopScanner(html5QrCode).then(() => {
-                                    onResult(decodedText);
-                                });
-                            }, 2000);
-                        }
-                    },
-                    (_) => {
-                        // Scan Failure (Normal - just ignore)
-                        setTrackingRect(null);
-                    }
-                );
+                // 1️⃣ TRY PRO MODE (4K / Focus)
+                console.log("📸 Trying Pro Camera Mode...");
+                await html5QrCode.start({ facingMode: "environment" }, config4K, onScanSuccess, onScanFailure);
             } catch (err: any) {
-                console.error("[BarcodeScanner] Start Error", err);
-                if (err?.name === "NotAllowedError") {
-                    setError("🚫 Camera Permission Denied. Please reset permissions.");
-                } else if (err?.name === "NotFoundError") {
-                    setError("📷 No Camera Found.");
-                } else {
-                    setError(`Camera Error: ${err.message || "Unknown error"}`);
+                console.warn("⚠️ Pro Camera Failed:", err);
+
+                try {
+                    // 2️⃣ FALLBACK TO BASIC MODE (Compatibility)
+                    console.log("🔄 Fallback to Basic Camera Mode...");
+                    await html5QrCode.start({ facingMode: "environment" }, configBasic, onScanSuccess, onScanFailure);
+                } catch (err2: any) {
+                    console.error("❌ Basic Camera Failed:", err2);
+                    handleCameraError(err2);
                 }
+            }
+        };
+
+        const onScanSuccess = (decodedText: string, result: any) => {
+            // --- 1. COORDINATE MAPPING ---
+            if (result?.resultPoints && result.resultPoints.length > 0) {
+                calculateBoundingBox(result.resultPoints);
+            } else {
+                setTrackingRect(null);
+            }
+
+            // --- 2. STABILITY LOGIC ---
+            if (decodedText !== lastCodeRef.current) {
+                lastCodeRef.current = decodedText;
+                scanCountRef.current = 1;
+                setScanProgress(1);
+                onStatusChange?.("Detecting Barcode...");
+            } else {
+                scanCountRef.current += 1;
+                setScanProgress(Math.min(scanCountRef.current, 5));
+                if (scanCountRef.current < 5) {
+                    onStatusChange?.("Scanning...");
+                }
+            }
+
+            // --- 3. FINAL VALIDATION (5 Frames) ---
+            if (scanCountRef.current === 5) {
+                onStatusChange?.("Verified!");
+                setTimeout(() => {
+                    stopScanner(html5QrCode).then(() => {
+                        onResult(decodedText);
+                    });
+                }, 2000);
+            }
+        };
+
+        const onScanFailure = (_: any) => {
+            setTrackingRect(null);
+        };
+
+        const handleCameraError = (err: any) => {
+            if (err?.name === "NotAllowedError") {
+                setError("🚫 Camera Permission Denied. Please reset permissions in browser settings.");
+            } else if (err?.name === "NotFoundError" || err?.name === "DevicesNotFoundError") {
+                setError("📷 No Camera Found on this device.");
+            } else if (err?.name === "NotReadableError") {
+                setError("⚠️ Camera is in use by another app.");
+            } else if (err?.name === "OverconstrainedError") {
+                setError("⚠️ Camera constraints not supported.");
+            } else {
+                setError(`Camera Error: ${err.message || "Unknown error"}`);
             }
         };
 
@@ -228,10 +243,17 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
                 )}
             </AnimatePresence>
 
-            {/* ERROR */}
+            {/* ERROR OVERLAY */}
             {error && (
-                <div className="absolute bottom-20 bg-black/80 px-4 py-2 rounded-full border border-red-500/50">
-                    <p className="text-red-400 text-xs">{error}</p>
+                <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/90 p-6 text-center">
+                    <div className="text-red-500 text-6xl mb-4">⚠️</div>
+                    <h3 className="text-white text-xl font-bold mb-2">Camera Disabled</h3>
+                    <p className="text-red-400 text-lg mb-4">{error}</p>
+                    <p className="text-gray-400 text-sm">
+                        Mobile browsers block the camera on insecure connections (HTTP).
+                        <br />
+                        <strong>Solution:</strong> Deploy this app to Vercel (HTTPS).
+                    </p>
                 </div>
             )}
         </motion.div>

@@ -50,8 +50,8 @@ Now that your code is online, we tell Vercel to watch it.
 4.  **Add Environment Variables (The Magic Key)**:
     *   Click to expand **"Environment Variables"**.
     *   Copy your API Key from your local `.env` file.
-    *   **Name**: `VITE_OPENROUTER_API_KEY`
-    *   **Value**: `sk-or-v1-...` (Your full key)
+    *   **Name**: `VITE_GOOGLE_API_KEY`
+    *   **Value**: `AIzaSy...` (Your full Google Key)
     *   Click **"Add"**.
 
 5.  **Deploy**:

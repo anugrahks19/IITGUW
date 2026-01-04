@@ -36,9 +36,22 @@ export const VoiceAssistant: React.FC<VoiceProps> = ({ onNavigate }) => {
     useEffect(() => { modeRef.current = mode; }, [mode]);
 
     useEffect(() => {
+        // 🔒 1. HTTPS SECURITY CHECK (Mobile Requirements)
+        if (!window.isSecureContext) {
+            setError("Audio Disabled: Requires HTTPS or Localhost.");
+            return;
+        }
+
         const { webkitSpeechRecognition, SpeechRecognition } = window as unknown as IWindow;
         const SpeechAPI = SpeechRecognition || webkitSpeechRecognition;
 
+        // 🌐 2. BROWSER SUPPORT CHECK
+        if (!SpeechAPI) {
+            setError("Voice not supported on this browser. Try Chrome/Edge.");
+            return;
+        }
+
+        // 🎤 3. INIT RECOGNITION
         if (SpeechAPI) {
             const recognition = new SpeechAPI();
             recognition.continuous = true; // We keep it continuous WHILE AWAKE
@@ -73,8 +86,14 @@ export const VoiceAssistant: React.FC<VoiceProps> = ({ onNavigate }) => {
             recognition.onerror = (event: any) => {
                 console.error("🎤 Mic Error:", event.error);
                 if (event.error === 'not-allowed') {
-                    setError("Mic Denied");
+                    setError("Mic Permission Denied.");
                     hardStop();
+                } else if (event.error === 'network') {
+                    setError("Network Error (Check Connection).");
+                } else if (event.error === 'no-speech') {
+                    // Ignore (Just silence)
+                } else {
+                    setError(`Mic Error: ${event.error}`);
                 }
             };
 
