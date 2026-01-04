@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const API_KEY = "AIzaSyCG5cOtv3uw9bYqgekvMP_qusCFkS1H1Rc";
+const API_KEY = "AIzaSyAhp9uhLGDwpXT5fpoSiBlACB5tj8BOpy4";
 
 async function list() {
     try {
@@ -9,9 +9,14 @@ async function list() {
         const data = await response.json();
 
         if (data.models) {
-            console.log("✅ Available Models (Full List):");
-            const names = data.models.map(m => m.name.replace('models/', ''));
-            console.log(JSON.stringify(names, null, 2));
+            console.log("✅ API Connectivity Check:");
+            const geminiModels = data.models.filter(m => m.name.includes("gemini"));
+            if (geminiModels.length > 0) {
+                console.log("🎉 SUCCESS: Gemini Models Found!");
+                console.log(geminiModels.map(m => m.name.replace('models/', '')).join('\n'));
+            } else {
+                console.log("❌ FAILURE: No Gemini models found. Only:", data.models.map(m => m.name).join(', '));
+            }
         } else {
             console.error("No models found. Response:", JSON.stringify(data, null, 2));
         }
