@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI, type Part } from "@google/generative-ai";
 import { formatProductSummary, type OFFProduct } from './openfoodfacts';
-import { recognizeTextCloud } from './ocr-space'; // Keep as backup if needed
+// import { recognizeTextCloud } from './ocr-space'; // Keep as backup if needed - REMOVED for Build
 
 // 🔑 GOOGLE CONFIG
 const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
