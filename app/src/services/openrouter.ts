@@ -10,7 +10,19 @@ if (!API_KEY) {
 }
 
 const genAI = new GoogleGenerativeAI(API_KEY);
-const MODEL_NAME = "gemini-1.5-flash-001"; // Pinned version for reliability
+// const MODEL_NAME = "gemini-2.0-flash-exp"; // Trying latest experimental version
+
+// 🧠 MODEL FALLBACK LIST
+// Prioritize Free/Experimental -> Lite -> Validated Flash -> Pro Backup
+const CANDIDATE_MODELS = [
+    "gemini-2.5-flash", // User Requested (Likely placeholder, but trying first)
+    "gemini-2.0-flash-exp", // Experimental (Smartest Free)
+    "gemini-2.0-flash-lite-preview-02-05", // Lite Preview (Fastest Free)
+    "gemini-1.5-flash", // Standard Alias
+    "gemini-1.5-flash-001", // Pinned Standard
+    "gemini-1.5-flash-8b", // High Efficiency
+    "gemini-1.5-pro" // Backup (Might be paid/limited)
+];
 
 // ============================================================================
 // 🧠 CACHE & UTILS
@@ -61,7 +73,7 @@ function fileToGenerativePart(base64Data: string, mimeType: string = "image/jpeg
 }
 
 // ============================================================================
-// ⚡ MAIN AI CALLER (GOOGLE GEMINI)
+// ⚡ MAIN AI CALLER (GOOGLE GEMINI - WITH FALLBACK)
 // ============================================================================
 async function callGemini(
     promptParts: (string | Part)[],
@@ -82,38 +94,56 @@ async function callGemini(
 
     if (!API_KEY) throw new Error("Missing Google API Key");
 
-    try {
-        console.log(`🚀 Calling Gemini 1.5 Flash...`);
+    let lastError = "";
 
-        const model = genAI.getGenerativeModel({
-            model: MODEL_NAME,
-            systemInstruction: systemInstruction ? systemInstruction : undefined,
-            generationConfig: {
-                responseMimeType: jsonMode ? "application/json" : "text/plain",
-                temperature: 0.3,
+    // 🔄 FALLBACK LOOP
+    for (const modelName of CANDIDATE_MODELS) {
+        try {
+            console.log(`🚀 Trying Model: ${modelName}...`);
+
+            const model = genAI.getGenerativeModel({
+                model: modelName,
+                systemInstruction: systemInstruction ? systemInstruction : undefined,
+                generationConfig: {
+                    responseMimeType: jsonMode ? "application/json" : "text/plain",
+                    temperature: 0.3,
+                }
+            });
+
+            // ⏱️ Timeout Race (20s)
+            const resultPromise = model.generateContent(promptParts);
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 20000));
+
+            const result: any = await Promise.race([resultPromise, timeoutPromise]);
+            const response = await result.response;
+            const text = response.text();
+
+            if (!text) throw new Error("Empty response");
+
+            console.log(`✅ Success with ${modelName}!`);
+
+            const finalResult = { content: text, model: modelName };
+
+            // Cache text responses
+            if (isTextOnly) {
+                const cacheKey = getCacheKey(JSON.stringify(promptParts));
+                try { localStorage.setItem(cacheKey, JSON.stringify(finalResult)); } catch (e) { }
             }
-        });
 
-        const result = await model.generateContent(promptParts);
-        const response = await result.response;
-        const text = response.text();
+            return finalResult;
 
-        console.log("✅ Gemini Success!");
+        } catch (e: any) {
+            console.warn(`❌ ${modelName} Failed:`, e.message);
+            lastError = e.message;
 
-        const finalResult = { content: text, model: MODEL_NAME };
-
-        // Cache text responses
-        if (isTextOnly) {
-            const cacheKey = getCacheKey(JSON.stringify(promptParts));
-            try { localStorage.setItem(cacheKey, JSON.stringify(finalResult)); } catch (e) { }
+            // If it's a "Safety" block, it might block all models, but we continue anyway.
+            // If it's "404 Not Found" or "429 Quota", we definitely want to try the next one.
+            continue;
         }
-
-        return finalResult;
-
-    } catch (e: any) {
-        console.error("❌ Gemini Error:", e);
-        throw new Error(`Google AI Error: ${e.message}`);
     }
+
+    console.error("☠️ All Gemini Models Failed.");
+    throw new Error(`All Models Failed. Last Error: ${lastError}`);
 }
 
 
@@ -134,10 +164,24 @@ export interface AnalysisResult {
 }
 
 const MASTER_PROMPT_TEXT = (productName: string, webIngredients: string, userIntent: string) => `
-You are ShelfSense, a shopping co-pilot. User Intent: "${userIntent}".
+You are ShelfSense, an expert health analyzer.
+User Intent: "${userIntent}".
 Context: Product="${productName || 'Unknown'}", Ingredients="${webIngredients || 'Not found'}".
-Analyze health impact based on visible data.
-RETURN JSON ONLY matching AnalysisResult schema.
+
+Analyze health impact for this intent.
+CRITICAL: You MUST return a valid JSON object.
+STRICT JSON STRUCTURE:
+{
+  "verdict": "HEALTHY" | "MODERATE" | "UNHEALTHY" | "AVOID",
+  "verdict_short": "Short summary (5 words max)",
+  "score": 0-100,
+  "explanation": "Detailed explanation (2 sentences)",
+  "tradeoffs": { "pros": ["pro1", "pro2"], "cons": ["con1", "con2"] },
+  "uncertainty": { "score": 10-90, "reason": "Why uncertain?" },
+  "swap_suggestion": { "product_name": "Better Alternative", "reason_why": "Why better?" },
+  "sources_cited": ["Generic Knowledge"]
+}
+DO NOT RETURN MARKDOWN. DO NOT USE \`\`\`json. JUST RETURN RAW JSON.
 `;
 
 export const analyzeImageWithAI = async (base64Image: string, productName?: string, webIngredients: string = "", userIntent: string = "General Health"): Promise<AnalysisResult> => {
@@ -164,10 +208,18 @@ export const analyzeImageWithAI = async (base64Image: string, productName?: stri
     if (!result) throw new Error("Gemini returned empty response.");
 
     try {
-        return JSON.parse(result.content);
+        const cleanJson = result.content.replace(/```json\n?|\n?```/g, "").trim();
+        const parsed = JSON.parse(cleanJson);
+
+        // Validation Schema Check
+        if (!parsed.verdict || !parsed.explanation) {
+            throw new Error("Missing verdict schema.");
+        }
+
+        return parsed;
     } catch (e) {
         console.error("JSON Parse Error", result.content);
-        throw new Error("Failed to parse Gemini JSON.");
+        throw new Error("Failed to parse Gemini JSON. Raw: " + result.content.substring(0, 50));
     }
 };
 

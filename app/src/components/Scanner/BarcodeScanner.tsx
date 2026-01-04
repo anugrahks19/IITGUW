@@ -171,10 +171,17 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-0 bg-black flex items-center justify-center pointer-events-none"
+            className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none"
         >
             {/* Viewport */}
-            <div id="reader-stream" className="w-full h-full absolute inset-0 object-cover pointer-events-auto" />
+            <div id="reader-stream" className="w-full h-full absolute inset-0 object-cover pointer-events-auto bg-black" />
+
+            {/* Loading Indicator (Visible until camera starts) */}
+            {!trackingRect && !error && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <p className="text-white/50 text-xs font-mono animate-pulse">Initializing Vision...</p>
+                </div>
+            )}
 
             {/* TRACKING OVERLAY */}
             <AnimatePresence>

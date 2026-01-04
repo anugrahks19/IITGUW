@@ -395,7 +395,7 @@ const BSDetector: React.FC = () => {
                     {/* LOADING OVERLAY REMOVED - Camera stays visible with Guide Text */}
 
                     {/* RESULT (NEW SHELFSENSE UI) */}
-                    {state === 'RESULT' && scanData.analysis ? (
+                    {state === 'RESULT' && scanData.analysis && scanData.analysis.verdict ? (
                         <DecisionCard
                             result={scanData.analysis}
                             productName={scanData.productName || "Scanned Product"}
@@ -405,15 +405,16 @@ const BSDetector: React.FC = () => {
                             }}
                             onExplainMore={() => setShowProvenance(true)}
                         />
-                    ) : state === 'RESULT' && (
+                    ) : state === 'RESULT' ? (
                         <div className="flex-1 flex items-center justify-center p-8 text-center text-slate-400">
+
                             <div>
                                 <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
                                 <p>Analysis Data Missing.</p>
                                 <button onClick={resetFlow} className="mt-4 px-6 py-2 bg-slate-800 rounded-full text-white">Try Again</button>
                             </div>
                         </div>
-                    )}
+                    ) : null}
 
                     {/* ERROR */}
                     {state === 'ERROR' && (
