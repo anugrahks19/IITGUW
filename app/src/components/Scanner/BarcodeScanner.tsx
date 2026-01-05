@@ -90,7 +90,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
                             }, 2000);
                         }
                     },
-                    (errorMessage) => {
+                    (_) => {
                         // Scan Failure (Normal - just ignore verbose logs)
                         // setTrackingRect(null); 
                         // Only log critical frame errors if needed, usually ignore

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, Brain, MessageSquare, Sparkles } from 'lucide-react';
+import { Zap, Brain, MessageSquare } from 'lucide-react';
 import { chatWithNova } from '../../services/openrouter';
 
 const WAKE_WORD = "nexus";
