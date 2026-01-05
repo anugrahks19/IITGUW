@@ -180,8 +180,8 @@ async function callOpenRouter(
                 headers: {
                     "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
                     "Content-Type": "application/json",
-                    "HTTP-Referer": "https://shelfsense.app",
-                    "X-Title": "ShelfSense"
+                    "HTTP-Referer": "https://bitevue.app",
+                    "X-Title": "BiteVue"
                 },
                 body: JSON.stringify({
                     model: modelName,
@@ -333,7 +333,7 @@ export interface AnalysisResult {
 }
 
 const MASTER_PROMPT_TEXT = (productName: string, webIngredients: string, userIntent: string) => `
-You are ShelfSense, an expert health analyzer.
+You are BiteVue, an expert health analyzer.
 User Intent: "${userIntent}".
 Context: Product="${productName || 'Unknown'}", Ingredients="${webIngredients || 'Not found'}".
 
@@ -386,7 +386,7 @@ export const analyzeImageWithAI = async (base64Image: string, productName?: stri
 export const analyzeProductData = async (product: OFFProduct, userIntent: string = "General Health"): Promise<AnalysisResult> => {
     const summary = formatProductSummary(product);
     const prompt = `
-    You are ShelfSense. User Goal: "${userIntent}".
+    You are BiteVue. User Goal: "${userIntent}".
     Precise lab data provided:
     ${summary}
     Analyze thoroughly. Uncertainty MUST be 0.

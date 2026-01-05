@@ -84,7 +84,7 @@ export const ProvenanceModal: React.FC<ProvenanceModalProps> = ({ isOpen, onClos
                             <div className="opacity-50 hover:opacity-100 transition-opacity">
                                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">AI Context</h3>
                                 <div className="p-3 bg-black rounded-lg text-xs font-mono text-green-300/60 overflow-x-auto whitespace-pre-wrap">
-                                    {`Intent: "${localStorage.getItem('shelfSense_intent') || 'General'}"\nModel: ${result.model_used || "Auto-Switch"}\nMode: Agentic Decision`}
+                                    {`Intent: "${localStorage.getItem('bitevue_intent') || 'General'}"\nModel: ${result.model_used || "Auto-Switch"}\nMode: Agentic Decision`}
                                 </div>
                             </div>
                         </div>

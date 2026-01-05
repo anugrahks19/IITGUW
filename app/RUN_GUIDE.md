@@ -1,6 +1,6 @@
-# ShelfSense - Run Guide
+# BiteVue - Run Guide
 
-ShelfSense is an AI-powered food analyzer that helps you make healthier choices by scanning products and analyzing their ingredients using advanced AI models.
+BiteVue is an AI-powered food analyzer that helps you make healthier choices by scanning products and analyzing their ingredients using advanced AI models.
 
 ## 🚀 Quick Start
 

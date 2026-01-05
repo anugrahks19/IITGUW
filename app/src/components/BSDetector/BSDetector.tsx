@@ -45,6 +45,16 @@ const BSDetector: React.FC = () => {
     const [userIntent, setUserIntent] = useState<UserIntent>('General Health');
     const [showProvenance, setShowProvenance] = useState(false);
 
+    // Persistence
+    React.useEffect(() => {
+        const saved = localStorage.getItem('bitevue_intent');
+        if (saved) setUserIntent(saved as UserIntent);
+    }, []);
+
+    React.useEffect(() => {
+        localStorage.setItem('bitevue_intent', userIntent);
+    }, [userIntent]);
+
     // Refs
     // Refs
     const webcamRef = useRef<Webcam>(null);
@@ -245,12 +255,12 @@ const BSDetector: React.FC = () => {
                 {state !== 'RESULT' ? (
                     <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-4 py-2 rounded-full border border-white/10 shadow-lg pointer-events-auto">
                         <ScanLine className="w-4 h-4 text-brand-400" />
-                        <span className="font-bold text-sm tracking-wide">ShelfSense</span>
+                        <span className="font-bold text-sm tracking-wide">BiteVue</span>
                     </div>
                 ) : <div />} {/* Spacer to keep Reset button to the right */}
 
                 {state !== 'IDLE' && (
-                    <button onClick={resetFlow} className="p-3 bg-black/60 backdrop-blur-xl rounded-full border border-white/10 text-slate-300 shadow-lg hover:bg-black/80 transition-colors">
+                    <button onClick={resetFlow} className="pointer-events-auto p-3 bg-black/60 backdrop-blur-xl rounded-full border border-white/10 text-slate-300 shadow-lg hover:bg-black/80 transition-colors">
                         <RotateCcw className="w-4 h-4" />
                     </button>
                 )}
@@ -403,7 +413,7 @@ const BSDetector: React.FC = () => {
 
                     {/* LOADING OVERLAY REMOVED - Camera stays visible with Guide Text */}
 
-                    {/* RESULT (NEW SHELFSENSE UI) */}
+                    {/* RESULT (NEW BITEVUE UI) */}
                     {state === 'RESULT' && scanData.analysis && scanData.analysis.verdict ? (
                         <DecisionCard
                             result={scanData.analysis}

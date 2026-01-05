@@ -28,7 +28,7 @@ const req = https.request({
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${API_KEY}`,
         'HTTP-Referer': 'https://shelf-sense.vercel.app', // Site URL
-        'X-Title': 'ShelfSense'
+        'X-Title': 'BiteVue'
     }
 }, (res) => {
     let body = '';
