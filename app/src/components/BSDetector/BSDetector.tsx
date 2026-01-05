@@ -249,6 +249,7 @@ const BSDetector: React.FC = () => {
 
 
 
+    const [cameraKey, setCameraKey] = useState(0); // Forcing Camera Remounts
     const [forcedVoiceQuery, setForcedVoiceQuery] = React.useState<string | null>(null);
 
     // 💬 PROACTIVE CO-PILOT (The Nudge)
@@ -376,22 +377,37 @@ const BSDetector: React.FC = () => {
                             <div className="flex-1 relative overflow-hidden rounded-b-3xl">
                                 {/* Only render Webcam for specific visual states including ANALYZING */}
                                 {['SCAN_FRONT', 'SCAN_INGREDIENTS', 'SCAN_CROP', 'ANALYZING'].includes(state) && (
-                                    <Webcam
-                                        audio={false}
-                                        ref={webcamRef}
-                                        screenshotFormat="image/jpeg"
-                                        videoConstraints={{
-                                            facingMode: "environment"
-                                            // 🛡️ SIMPLE MODE: No advanced constraints to prevent black screen on incompatible devices
-                                        }}
-                                        className="absolute inset-0 w-full h-full object-cover"
-                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                        onUserMediaError={(err) => {
-                                            console.log("Webcam Mount ERROR", err);
-                                            setErrorMsg("Camera busy. Please reset.");
-                                            setState('ERROR');
-                                        }}
-                                    />
+                                    <>
+                                        <Webcam
+                                            key={cameraKey} // 🔑 FORCE REMOUNT ON ERROR/RETRY
+                                            audio={false}
+                                            ref={webcamRef}
+                                            screenshotFormat="image/jpeg"
+                                            videoConstraints={{
+                                                facingMode: "environment"
+                                            }}
+                                            className="absolute inset-0 w-full h-full object-cover"
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                            onUserMediaError={(err) => {
+                                                console.error("Webcam Error:", err);
+                                                // Don't auto-fail, show retry UI
+                                                setErrorMsg("Camera stuck? Tap to reset.");
+                                            }}
+                                        />
+
+                                        {/* MANUAL CAMERA RESET BUTTON (If Black Screen) */}
+                                        <div className="absolute top-4 right-4 z-50">
+                                            <button
+                                                onClick={() => {
+                                                    // Cycle the Key to force restart
+                                                    setCameraKey(prev => prev + 1);
+                                                }}
+                                                className="p-2 bg-black/50 rounded-full text-white/50 hover:text-white border border-white/10"
+                                            >
+                                                <RotateCcw className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </>
                                 )}
 
                                 {/* Image Cropper */}
