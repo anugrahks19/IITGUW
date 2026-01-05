@@ -14,7 +14,7 @@ import { IntentSelector } from './IntentSelector';
 import type { UserIntent } from './IntentSelector';
 import { DecisionCard } from './DecisionCard';
 import { ProvenanceModal } from './ProvenanceModal';
-import { VoiceAssistant } from '../VoiceAssistant';
+import Nova from '../Nova/Nova'; // [NEW]
 
 // Image Cropper
 import ImageCropper from '../Scanner/ImageCropper';
@@ -71,7 +71,6 @@ const BSDetector: React.FC = () => {
     // ==========================================
     // Lifecycle & State Management
     // ==========================================
-
     // ==========================================
     // Lifecycle & State Management
     // ==========================================
@@ -250,7 +249,6 @@ const BSDetector: React.FC = () => {
 
 
     const [cameraKey, setCameraKey] = useState(0); // Forcing Camera Remounts
-    const [forcedVoiceQuery, setForcedVoiceQuery] = React.useState<string | null>(null);
 
     // 💬 PROACTIVE CO-PILOT (The Nudge)
     React.useEffect(() => {
@@ -271,18 +269,26 @@ const BSDetector: React.FC = () => {
     return (
         <div className="min-h-screen bg-black text-slate-100 flex flex-col font-sans max-w-md mx-auto relative overflow-hidden">
             {/* Header */}
-            <header className="fixed top-0 inset-x-0 p-6 z-[100] flex items-start justify-between pointer-events-none max-w-md mx-auto left-0 right-0">
+            <header className="fixed top-0 inset-x-0 p-6 z-[100] flex items-center justify-between pointer-events-none max-w-md mx-auto left-0 right-0 h-20">
                 {state !== 'RESULT' ? (
-                    <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl px-4 py-2 rounded-full border border-white/10 shadow-lg pointer-events-auto">
+                    <div className="bg-black/60 backdrop-blur-xl px-4 py-2 rounded-full border border-white/10 shadow-lg flex items-center gap-2 pointer-events-auto z-20">
                         <ScanLine className="w-4 h-4 text-brand-400" />
                         <span className="font-bold text-sm tracking-wide">BiteVue</span>
                     </div>
-                ) : <div />} {/* Spacer to keep Reset button to the right */}
+                ) : <div />}
 
-                {state !== 'IDLE' && (
-                    <button onClick={resetFlow} className="pointer-events-auto p-3 bg-black/60 backdrop-blur-xl rounded-full border border-white/10 text-slate-300 shadow-lg hover:bg-black/80 transition-colors">
-                        <RotateCcw className="w-4 h-4" />
-                    </button>
+                {/* CENTER: Nexus (Always On) */}
+                <div className="absolute left-1/2 top-6 -translate-x-1/2 pointer-events-auto z-30">
+                    <Nova />
+                </div>
+
+                {/* RIGHT: Retry Button */}
+                {state !== 'IDLE' && state !== 'RESULT' && (
+                    <div className="absolute right-6 top-6 pointer-events-auto z-20">
+                        <button onClick={resetFlow} className="p-3 bg-black/60 backdrop-blur-xl rounded-full border border-white/10 text-slate-300 shadow-lg hover:bg-black/80 transition-colors">
+                            <RotateCcw className="w-4 h-4 text-slate-300" />
+                        </button>
+                    </div>
                 )}
             </header>
 
@@ -465,7 +471,7 @@ const BSDetector: React.FC = () => {
                             }}
                             onExplainMore={() => setShowProvenance(true)}
                             onScanIngredients={() => safeSwitchTo('SCAN_INGREDIENTS')}
-                            onAskQuestion={(q) => setForcedVoiceQuery(q)}
+                            onAskQuestion={(q) => console.log("Ask Nexus:", q)}
                             userIntent={userIntent}
                         />
                     ) : state === 'RESULT' ? (
@@ -499,23 +505,6 @@ const BSDetector: React.FC = () => {
                     onClose={() => setShowProvenance(false)}
                     result={scanData.analysis!}
                 />
-
-                {/* VOICE ASSISTANT (NIVU) */}
-                <VoiceAssistant
-                    onNavigate={(action) => {
-                        if (action === 'HOME') resetFlow();
-                        else if (action === 'SCAN_BARCODE') setState('SCAN_BARCODE');
-                        else if (action === 'SCAN_FRONT') safeSwitchTo('SCAN_FRONT');
-                        else if (action.startsWith('INTENT:')) {
-                            // 🧠 AI-NATIVE: Implicit Configuration
-                            const newIntent = action.split(':')[1] as UserIntent;
-                            setUserIntent(newIntent);
-                        }
-                    }}
-                    forcedQuery={forcedVoiceQuery}
-                    onQueryHandled={() => setForcedVoiceQuery(null)}
-                />
-
             </main>
         </div>
     );

@@ -29,15 +29,9 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
 
         // 📸 CAMERA CONFIGURATION
         const config = {
-            fps: 15,
-            qrbox: { width: 250, height: 150 }, // Force box size for scanning region
-            useBarCodeDetectorIfSupported: true,
-            aspectRatio: 1.0,
+            fps: 10,
             videoConstraints: {
-                facingMode: { ideal: "environment" }
-                // 🛡️ MOBILE COMPATIBILITY MODE
-                // Removed all resolution/focus/zoom constraints.
-                // We let the browser/OS assume the "Best Available" native control.
+                facingMode: "environment"
             },
             formatsToSupport: [
                 Html5QrcodeSupportedFormats.EAN_13,
@@ -96,9 +90,10 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
                             }, 2000);
                         }
                     },
-                    (_) => {
-                        // Scan Failure (Normal - just ignore)
-                        setTrackingRect(null);
+                    (errorMessage) => {
+                        // Scan Failure (Normal - just ignore verbose logs)
+                        // setTrackingRect(null); 
+                        // Only log critical frame errors if needed, usually ignore
                     }
                 );
             } catch (err: any) {

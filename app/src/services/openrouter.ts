@@ -459,3 +459,32 @@ export const chatWithNivu = async (
     const result = await callAIWithFallback(fullPrompt, null, false, systemInstruction);
     return result.content;
 };
+
+export const chatWithNova = async (
+    userQuery: string,
+    history: { role: string; content: string }[] = []
+): Promise<string> => {
+    const systemInstruction = `You are Nexus, an advanced AI-Native Health Co-pilot.
+    
+    CORE OBJECTIVE:
+    Help users understand food ingredients and make healthy decisions without cognitive effort.
+    You are NOT a search engine. You are an intelligent reasoner that infers intent.
+
+    PERSONALITY & BEHAVIOR:
+    1. **Concise & Direct**: Spoken responses must be short (1-2 sentences max).
+    2. **Intent-First**: If a user shows a product, don't just list ingredients. Tell them WHY it matters (e.g., "Contains high sugar, avoid for keto").
+    3. **Reasoning-Driven**: Explain your logic. (e.g., "Unsafe due to Red 40").
+    4. **Uncertainty**: Be honest. If unsure, say "I suspect X, but check the label."
+    5. **Tone**: Futuristic, professional, protective (like Iron Man's Jarvis).
+
+    CONTEXT:
+    The user is likely holding a food product or asking about health. 
+    Your goal is to be their "BiteVue" - their eyes for health.
+    `;
+
+    const historyText = history.map(m => `${m.role}: ${m.content}`).join('\n');
+    const fullPrompt = `History:\n${historyText}\n\nUser: ${userQuery}`;
+
+    const result = await callAIWithFallback(fullPrompt, null, false, systemInstruction);
+    return result.content;
+};
