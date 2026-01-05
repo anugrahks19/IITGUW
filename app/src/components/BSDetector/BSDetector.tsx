@@ -471,7 +471,15 @@ const BSDetector: React.FC = () => {
                             }}
                             onExplainMore={() => setShowProvenance(true)}
                             onScanIngredients={() => safeSwitchTo('SCAN_INGREDIENTS')}
-                            onAskQuestion={(q) => console.log("Ask Nexus:", q)}
+                            onAskQuestion={(q) => {
+                                console.log("Ask Nexus:", q);
+                                // Trigger Nexus to speak the answer (Simulated for Hackathon Demo)
+                                // In a real app, this would feed back into chatWithNova.
+                                // For now, we make Nexus acknowledge it.
+                                const msg = new SpeechSynthesisUtterance(`Good question. ${q} is important because it affects your insulin intervals.`);
+                                msg.rate = 1.1;
+                                window.speechSynthesis.speak(msg);
+                            }}
                             userIntent={userIntent}
                         />
                     ) : state === 'RESULT' ? (

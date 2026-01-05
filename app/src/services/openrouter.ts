@@ -348,6 +348,7 @@ STRICT JSON STRUCTURE:
   "tradeoffs": { "pros": ["pro1", "pro2"], "cons": ["con1", "con2"] },
   "uncertainty": { "score": 10-90, "reason": "Why uncertain?" },
   "swap_suggestion": { "product_name": "Better Alternative", "reason_why": "Why better?" },
+  "followUpQuestions": ["Question 1?", "Question 2?", "Question 3?"],
   "sources_cited": ["Generic Knowledge"]
 }
 DO NOT RETURN MARKDOWN. DO NOT USE \`\`\`json. JUST RETURN RAW JSON.
@@ -357,7 +358,17 @@ export const analyzeImageWithAI = async (base64Image: string, productName?: stri
     const isBlankImage = base64Image.includes('iVBORw0KGgo');
     const hasIngredients = webIngredients && webIngredients.length > 20;
 
-    const promptText = MASTER_PROMPT_TEXT(productName || "Unknown", webIngredients, userIntent);
+    // 🚀 DYNAMIC INTENT INFERENCE (Move 1 - Magic Trick)
+    // If the image strongly suggests a specific category, we override the user's intent.
+    let effectiveIntent = userIntent;
+
+    // Quick heuristic: If "Baby" or "Infant" is cleared detected in OCR (webIngredients), switch to Safety.
+    if (webIngredients.toLowerCase().includes('baby') || webIngredients.toLowerCase().includes('infant')) {
+        console.log("👶 Magic Trick: Auto-detected Baby Product. Switching Intent to 'Infant Safety'.");
+        effectiveIntent = "Infant Safety & Allergens";
+    }
+
+    const promptText = MASTER_PROMPT_TEXT(productName || "Unknown", webIngredients, effectiveIntent);
 
     // Decide if we send image or text only
     let imageToSend: string | null = base64Image;

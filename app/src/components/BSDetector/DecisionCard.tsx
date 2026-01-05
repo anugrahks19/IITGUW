@@ -76,7 +76,7 @@ export const DecisionCard: React.FC<DecisionCardProps> = ({ result, productName,
             {/* 2. UNCERTAINTY BAR + Humanized Text */}
             <div className="px-8 mb-6">
                 {/* Visual Bar */}
-                <div className="flex items-center gap-2 text-xs text-slate-500 mb-1 font-mono uppercase tracking-widest">
+                <div className={`flex items-center gap-2 text-xs mb-1 font-mono uppercase tracking-widest ${100 - result.uncertainty.score > 80 ? 'text-slate-500' : 'text-yellow-500 font-bold'}`}>
                     <BarChart2 className="w-3 h-3" />
                     Confidence: {100 - Math.round(result.uncertainty.score)}%
                 </div>
@@ -89,14 +89,15 @@ export const DecisionCard: React.FC<DecisionCardProps> = ({ result, productName,
                 </div>
 
                 {/* Humanized Note if needed */}
-                {result.uncertainty.score > 20 && (
+                {/* Humanized Note (Move 2 - Honest Uncertainty) */}
+                {result.uncertainty.score > 30 && (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         className="bg-yellow-400/10 border border-yellow-400/20 rounded-lg px-3 py-2 text-center"
                     >
                         <p className="text-xs text-yellow-300 italic">
-                            "I had a bit of trouble reading the bottom of the label, but I'm confident about these main ingredients."
+                            "{result.uncertainty.reason || "I'm not 100% sure about the lighting. Please double check the sugar content."}"
                         </p>
                     </motion.div>
                 )}
