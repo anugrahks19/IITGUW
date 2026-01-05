@@ -111,18 +111,27 @@ const BSDetector: React.FC = () => {
                 } else {
                     // Need ingredients
                     setLoadingMsg("Ingredients missing. Switch to manual.");
-                    setTimeout(() => setState('SCAN_INGREDIENTS'), 1500);
+                    safeSwitchTo('SCAN_INGREDIENTS');
                 }
             } else {
                 // Not found
                 setLoadingMsg("No details found. Switching to visual scan...");
-                setTimeout(() => setState('SCAN_FRONT'), 1500);
+                // Use safe transition to allow camera to release
+                setState('TRANSITION');
+                setTimeout(() => setState('SCAN_FRONT'), 1200);
             }
         } catch (err) {
             console.error(err);
             setLoadingMsg("Network error. Switching to manual...");
-            setTimeout(() => setState('SCAN_FRONT'), 1500);
+            setState('TRANSITION');
+            setTimeout(() => setState('SCAN_FRONT'), 1200);
         }
+    };
+
+    // Helper for safe camera switching
+    const safeSwitchTo = (targetState: AppState) => {
+        setState('TRANSITION');
+        setTimeout(() => setState(targetState), 1200);
     };
 
     // ==========================================
@@ -297,8 +306,8 @@ const BSDetector: React.FC = () => {
 
 
                             {/* BARCODE SCANNER OVERLAY */}
-                            {/* BARCODE SCANNER + LIVE VIEW (Persists during LOOKUP) */}
-                            {(state === 'SCAN_BARCODE' || state === 'LOOKUP') && (
+                            {/* BARCODE SCANNER + LIVE VIEW (Unmount during LOOKUP to free camera) */}
+                            {(state === 'SCAN_BARCODE') && (
                                 <div className="absolute inset-0 z-50 pointer-events-none">
                                     {/* LIVE SCANNER (Underneath, rendered by BarcodeScanner) */}
                                     <BarcodeScanner
@@ -441,7 +450,7 @@ const BSDetector: React.FC = () => {
                 <VoiceAssistant onNavigate={(action) => {
                     if (action === 'HOME') resetFlow();
                     else if (action === 'SCAN_BARCODE') setState('SCAN_BARCODE');
-                    else if (action === 'SCAN_FRONT') setState('SCAN_FRONT');
+                    else if (action === 'SCAN_FRONT') safeSwitchTo('SCAN_FRONT');
                 }} />
             </main>
         </div>

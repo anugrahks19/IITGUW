@@ -1,45 +1,72 @@
 import { GoogleGenerativeAI, type Part } from "@google/generative-ai";
 import { formatProductSummary, type OFFProduct } from './openfoodfacts';
-// import { recognizeTextCloud } from './ocr-space'; // Keep as backup if needed - REMOVED for Build
 
-// 🔑 GOOGLE CONFIG
-const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
+// ============================================================================
+// 🔑 CONFIG & KEYS
+// ============================================================================
+const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
+const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
 
-if (!API_KEY) {
-    console.error("❌ Missing Google API Key in .env");
-}
+if (!GOOGLE_API_KEY) console.warn("⚠️ Missing VITE_GOOGLE_API_KEY");
+if (!OPENROUTER_API_KEY) console.warn("⚠️ Missing VITE_OPENROUTER_API_KEY");
+if (!GROQ_API_KEY) console.warn("⚠️ Missing VITE_GROQ_API_KEY");
 
-const genAI = new GoogleGenerativeAI(API_KEY);
-// const MODEL_NAME = "gemini-2.0-flash-exp"; // Trying latest experimental version
+// ============================================================================
+// 🧠 MODEL LISTS & PROVIDERS
+// ============================================================================
 
-// 🧠 MODEL FALLBACK LIST
-// Prioritize Free/Experimental -> Lite -> Validated Flash -> Pro Backup
-const CANDIDATE_MODELS = [
-    "gemini-2.5-flash", // User Requested (Likely placeholder, but trying first)
-    "gemini-2.0-flash-exp", // Experimental (Smartest Free)
-    "gemini-2.0-flash-lite-preview-02-05", // Lite Preview (Fastest Free)
-    "gemini-1.5-flash", // Standard Alias
-    "gemini-1.5-flash-001", // Pinned Standard
-    "gemini-1.5-flash-8b", // High Efficiency
-    "gemini-1.5-pro" // Backup (Might be paid/limited)
+// --- 1. GOOGLE GEMINI MODELS ---
+const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY || "invalid_key");
+const GEMINI_MODELS = [
+    "gemini-2.0-flash-exp",           // 1. Experimental (Smartest/Newest)
+    "gemini-2.0-flash-lite-preview-02-05", // 2. Lite Preview (Fastest)
+    "gemini-1.5-flash",               // 3. Stable Flash
+    "gemini-1.5-flash-8b",            // 4. Efficiency
+    "gemini-1.5-pro"                  // 5. High Capability
+];
+
+// --- 2. OPENROUTER MODELS (10 Free + 10 Paid) ---
+// Docs: https://openrouter.ai/docs/models
+const OPENROUTER_MODELS = [
+    // --- FREE TIER (Primary) ---
+    "google/gemini-2.0-flash-exp:free",
+    "google/gemini-2.0-flash-lite-preview-02-05:free",
+    "google/gemini-2.0-pro-exp-02-05:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "deepseek/deepseek-r1:free",
+    "deepseek/deepseek-v3:free",
+    "qwen/qwen-2.5-vl-72b-instruct:free", // Vision capable
+    "qwen/qwen-2.5-72b-instruct:free",
+    "microsoft/phi-3-medium-128k-instruct:free",
+    "mistralai/mistral-large-2411:free", // "mistral-nemo:free" was deprecated or less capable? Using robust free ones.
+
+    // --- PAID / FALLBACK TIER (Reliable High Performance) ---
+    "google/gemini-2.0-flash-001",
+    "anthropic/claude-3.5-sonnet",
+    "anthropic/claude-3-haiku",
+    "openai/gpt-4o-mini",
+    "openai/gpt-4o",
+    "meta-llama/llama-3.2-90b-vision-instruct", // Vision
+    "qwen/qwen-2.5-72b-instruct",
+    "mistralai/mistral-large-latest",
+    "cohere/command-r-plus-08-2024",
+    "x-ai/grok-2-vision-1212"
+];
+
+// --- 3. GROQ MODELS (Fastest Fallback) ---
+const GROQ_MODELS = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it"
 ];
 
 // ============================================================================
-// 🧠 CACHE & UTILS
+// 🛠️ UTILITIES
 // ============================================================================
 
-const getCacheKey = (prompt: string): string => {
-    let hash = 0, i, chr;
-    if (prompt.length === 0) return hash.toString();
-    for (i = 0; i < prompt.length; i++) {
-        chr = prompt.charCodeAt(i);
-        hash = ((hash << 5) - hash) + chr;
-        hash |= 0;
-    }
-    return `shelfSense_gemini_${hash}`;
-};
-
-// 📉 Payload Optimizer (Resizes massive phone photos to avoid Bandwidth/Latency issues)
+// 📉 Payload Optimizer
 const compressImage = async (base64Str: string, maxWidth = 800): Promise<string> => {
     return new Promise((resolve) => {
         const img = new Image();
@@ -56,100 +83,242 @@ const compressImage = async (base64Str: string, maxWidth = 800): Promise<string>
             canvas.height = height;
             const ctx = canvas.getContext('2d');
             ctx?.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.8)); // 0.8 Quality
+            resolve(canvas.toDataURL('image/jpeg', 0.8));
         };
         img.onerror = () => resolve(base64Str);
     });
 };
 
-// Helper: Convert Data URL to InlineDataPart for Gemini
 function fileToGenerativePart(base64Data: string, mimeType: string = "image/jpeg"): Part {
     return {
         inlineData: {
-            data: base64Data.split(',')[1], // Remove "data:image/jpeg;base64,"
+            data: base64Data.split(',')[1],
             mimeType
         },
     };
 }
 
 // ============================================================================
-// ⚡ MAIN AI CALLER (GOOGLE GEMINI - WITH FALLBACK)
+// 🔄 PROVIDER FUNCTIONS
 // ============================================================================
+
+// 1. CALL GEMINI (GOOGLE AI STUDIO)
 async function callGemini(
     promptParts: (string | Part)[],
-    jsonMode: boolean = false,
+    jsonMode: boolean,
     systemInstruction?: string
-): Promise<{ content: string; model: string } | null> {
-
-    // Cache Check (Only for text-only simple prompts to save speed)
-    const isTextOnly = promptParts.every(p => typeof p === 'string');
-    if (isTextOnly) {
-        const cacheKey = getCacheKey(JSON.stringify(promptParts));
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-            console.log("⚡ Gemini Cache Hit!");
-            return JSON.parse(cached);
-        }
-    }
-
-    if (!API_KEY) throw new Error("Missing Google API Key");
+): Promise<{ content: string; model: string }> {
+    if (!GOOGLE_API_KEY) throw new Error("No Google API Key");
 
     let lastError = "";
-
-    // 🔄 FALLBACK LOOP
-    for (const modelName of CANDIDATE_MODELS) {
+    for (const modelName of GEMINI_MODELS) {
         try {
-            console.log(`🚀 Trying Model: ${modelName}...`);
-
+            console.log(`🤖 [Gemini] Trying ${modelName}...`);
             const model = genAI.getGenerativeModel({
                 model: modelName,
-                systemInstruction: systemInstruction ? systemInstruction : undefined,
+                systemInstruction,
                 generationConfig: {
                     responseMimeType: jsonMode ? "application/json" : "text/plain",
                     temperature: 0.3,
                 }
             });
 
-            // ⏱️ Timeout Race (20s)
+            // 15s Timeout
             const resultPromise = model.generateContent(promptParts);
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 20000));
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 15000));
 
             const result: any = await Promise.race([resultPromise, timeoutPromise]);
             const response = await result.response;
             const text = response.text();
 
-            if (!text) throw new Error("Empty response");
+            if (!text) throw new Error("Empty Response");
 
-            console.log(`✅ Success with ${modelName}!`);
-
-            const finalResult = { content: text, model: modelName };
-
-            // Cache text responses
-            if (isTextOnly) {
-                const cacheKey = getCacheKey(JSON.stringify(promptParts));
-                try { localStorage.setItem(cacheKey, JSON.stringify(finalResult)); } catch (e) { }
-            }
-
-            return finalResult;
+            console.log(`✅ [Gemini] Success: ${modelName}`);
+            return { content: text, model: `Gemini (${modelName})` };
 
         } catch (e: any) {
-            console.warn(`❌ ${modelName} Failed:`, e.message);
+            console.warn(`❌ [Gemini] ${modelName} Failed:`, e.message);
             lastError = e.message;
-
-            // If it's a "Safety" block, it might block all models, but we continue anyway.
-            // If it's "404 Not Found" or "429 Quota", we definitely want to try the next one.
             continue;
         }
     }
+    throw new Error(`All Gemini Models Failed: ${lastError}`);
+}
 
-    console.error("☠️ All Gemini Models Failed.");
-    throw new Error(`All Models Failed. Last Error: ${lastError}`);
+// 2. CALL OPENROUTER
+async function callOpenRouter(
+    promptText: string,
+    imageBase64: string | null,
+    jsonMode: boolean,
+    systemInstruction?: string
+): Promise<{ content: string; model: string }> {
+    if (!OPENROUTER_API_KEY) throw new Error("No OpenRouter Key");
+
+    // Prepare Messages
+    const messages: any[] = [];
+    if (systemInstruction) messages.push({ role: "system", content: systemInstruction });
+
+    const userContent: any[] = [{ type: "text", text: promptText }];
+    if (imageBase64) {
+        userContent.push({
+            type: "image_url",
+            image_url: { url: imageBase64.startsWith('data:') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}` }
+        });
+    }
+    messages.push({ role: "user", content: userContent });
+
+    let lastError = "";
+    for (const modelName of OPENROUTER_MODELS) {
+        try {
+            // Skip vision models if using image, but trying to be smart about compatibility
+            // For now, we just try them all. OpenRouter handles compatibility errors gracefully usually.
+
+            console.log(`🦄 [OpenRouter] Trying ${modelName}...`);
+
+            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://shelfsense.app",
+                    "X-Title": "ShelfSense"
+                },
+                body: JSON.stringify({
+                    model: modelName,
+                    messages: messages,
+                    response_format: jsonMode ? { type: "json_object" } : undefined,
+                    temperature: 0.3
+                })
+            });
+
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errText}`);
+            }
+
+            const data = await response.json();
+            const text = data.choices?.[0]?.message?.content;
+            if (!text) throw new Error("Empty Response from OpenRouter");
+
+            console.log(`✅ [OpenRouter] Success: ${modelName}`);
+            return { content: text, model: `OpenRouter (${modelName})` };
+
+        } catch (e: any) {
+            console.warn(`❌ [OpenRouter] ${modelName} Failed:`, e.message);
+            lastError = e.message;
+            continue; // seamless switch
+        }
+    }
+    throw new Error(`All OpenRouter Models Failed. Last: ${lastError}`);
+}
+
+// 3. CALL GROQ
+async function callGroq(
+    promptText: string,
+    jsonMode: boolean,
+    systemInstruction?: string
+): Promise<{ content: string; model: string }> {
+    if (!GROQ_API_KEY) throw new Error("No Groq Key");
+
+    // Groq doesn't support images well yet via standard endpoint in this loop easily
+    // We will assume Text-Only fallback for Groq for now or use Llama vision if supported
+    // For safety, we only send text to Groq in this implementation to ensure success.
+
+    const messages = [
+        ...(systemInstruction ? [{ role: "system", content: systemInstruction }] : []),
+        { role: "user", content: promptText }
+    ];
+
+    let lastError = "";
+    for (const modelName of GROQ_MODELS) {
+        try {
+            console.log(`⚡ [Groq] Trying ${modelName}...`);
+            const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${GROQ_API_KEY}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    model: modelName,
+                    messages: messages,
+                    response_format: jsonMode ? { type: "json_object" } : undefined,
+                    temperature: 0.3
+                })
+            });
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            const text = data.choices?.[0]?.message?.content;
+
+            if (!text) throw new Error("Empty Response");
+
+            console.log(`✅ [Groq] Success: ${modelName}`);
+            return { content: text, model: `Groq (${modelName})` };
+        } catch (e: any) {
+            console.warn(`❌ [Groq] ${modelName} Failed:`, e.message);
+            lastError = e.message;
+            continue;
+        }
+    }
+    throw new Error(`All Groq Models Failed: ${lastError}`);
 }
 
 
 // ============================================================================
-// 1. PRIMARY ANALYSIS (VISION)
+// 🚀 ORCHESTRATOR: CALL AI WITH FALLBACK
 // ============================================================================
+async function callAIWithFallback(
+    textPrompt: string,
+    imageBase64: string | null = null,
+    jsonMode: boolean = false,
+    systemInstruction?: string
+): Promise<{ content: string; model: string }> {
+
+    let promptParts: (string | Part)[] = [textPrompt];
+
+    // 1️⃣ TRY GEMINI (Google AI Studio)
+    try {
+        let geminiPrompt = [...promptParts];
+        if (imageBase64) {
+            const compressed = await compressImage(imageBase64);
+            geminiPrompt.push(fileToGenerativePart(compressed));
+        }
+        return await callGemini(geminiPrompt, jsonMode, systemInstruction);
+    } catch (e) {
+        console.error("⚠️ Gemini Failed, Switching to OpenRouter...", e);
+    }
+
+    // 2️⃣ TRY OPENROUTER
+    try {
+        let imgForOr = imageBase64;
+        if (imgForOr) {
+            imgForOr = await compressImage(imgForOr);
+        }
+        return await callOpenRouter(textPrompt, imgForOr, jsonMode, systemInstruction);
+    } catch (e) {
+        console.error("⚠️ OpenRouter Failed, Switching to Groq...", e);
+    }
+
+    // 3️⃣ TRY GROQ (Text Only Fallback usually)
+    try {
+        // If we had an image, we append a note that image analysis failed
+        let groqPrompt = textPrompt;
+        if (imageBase64) {
+            groqPrompt += "\n\n[Note: Image upload failed, please analyze based on text context only if possible.]";
+        }
+        return await callGroq(groqPrompt, jsonMode, systemInstruction);
+    } catch (e) {
+        console.error("❌ Groq Failed. All Providers Exhausted.");
+        throw new Error("All AI Services Failed. Please try again later.");
+    }
+}
+
+
+// ============================================================================
+// 📦 EXPORTED FUNCTIONS (UPDATED TO USE ORCHESTRATOR)
+// ============================================================================
+
 export interface AnalysisResult {
     verdict: 'HEALTHY' | 'MODERATE' | 'UNHEALTHY' | 'AVOID';
     verdict_short: string;
@@ -185,48 +354,35 @@ DO NOT RETURN MARKDOWN. DO NOT USE \`\`\`json. JUST RETURN RAW JSON.
 `;
 
 export const analyzeImageWithAI = async (base64Image: string, productName?: string, webIngredients: string = "", userIntent: string = "General Health"): Promise<AnalysisResult> => {
-
-    const isBlankImage = base64Image.includes('iVBORw0KGgo'); // Simple check
+    const isBlankImage = base64Image.includes('iVBORw0KGgo');
     const hasIngredients = webIngredients && webIngredients.length > 20;
 
-    let result;
     const promptText = MASTER_PROMPT_TEXT(productName || "Unknown", webIngredients, userIntent);
 
+    // Decide if we send image or text only
+    let imageToSend: string | null = base64Image;
     if (isBlankImage || hasIngredients) {
-        // Text Mode
-        console.log("ℹ️ Gemini Text Mode...");
-        result = await callGemini([promptText], true);
+        console.log("ℹ️ Text-Only Mode (Ingredients Found or Blank Image)");
+        imageToSend = null;
     } else {
-        // Vision Mode
-        console.log("📸 Gemini Vision Mode...");
-        const compressed = await compressImage(base64Image);
-        const imagePart = fileToGenerativePart(compressed);
-
-        result = await callGemini([promptText, imagePart], true);
+        console.log("📸 Vision Mode");
     }
 
-    if (!result) throw new Error("Gemini returned empty response.");
+    const result = await callAIWithFallback(promptText, imageToSend, true);
 
     try {
         const cleanJson = result.content.replace(/```json\n?|\n?```/g, "").trim();
         const parsed = JSON.parse(cleanJson);
 
-        // Validation Schema Check
-        if (!parsed.verdict || !parsed.explanation) {
-            throw new Error("Missing verdict schema.");
-        }
-
+        if (!parsed.verdict) throw new Error("Invalid Schema");
+        parsed.model_used = result.model; // Inject model name
         return parsed;
     } catch (e) {
         console.error("JSON Parse Error", result.content);
-        throw new Error("Failed to parse Gemini JSON. Raw: " + result.content.substring(0, 50));
+        throw new Error("Failed to parse Analysis JSON.");
     }
 };
 
-
-// ============================================================================
-// 1.5 JSON ANALYSIS (OPENFOODFACTS DATA)
-// ============================================================================
 export const analyzeProductData = async (product: OFFProduct, userIntent: string = "General Health"): Promise<AnalysisResult> => {
     const summary = formatProductSummary(product);
     const prompt = `
@@ -237,26 +393,18 @@ export const analyzeProductData = async (product: OFFProduct, userIntent: string
     RETURN JSON ONLY.
     `;
 
-    const result = await callGemini([prompt], true);
-    if (!result) throw new Error("Gemini analysis failed.");
-    return JSON.parse(result.content);
+    const result = await callAIWithFallback(prompt, null, true); // Text only
+    const cleanJson = result.content.replace(/```json\n?|\n?```/g, "").trim();
+    return { ...JSON.parse(cleanJson), model_used: result.model };
 };
 
-
-// ============================================================================
-// 2. PRODUCT IDENTIFICATION
-// ============================================================================
 export const identifyProduct = async (base64Image: string): Promise<{ brand: string; product: string; link?: string }> => {
-    const compressed = await compressImage(base64Image);
-    const imagePart = fileToGenerativePart(compressed);
-
-    // Gemini is smart enough to handle this in one shot usually
     const prompt = `Identify the Brand and Product Name from this image. 
     Return strictly in this format: "Brand - Product Name". 
     If unsure or generic, return "Unknown".`;
 
-    const result = await callGemini([prompt, imagePart]);
-    const text = result?.content.trim() || "";
+    const result = await callAIWithFallback(prompt, base64Image, false);
+    const text = result.content.trim();
 
     if (text.length > 3 && !text.toLowerCase().includes('unknown')) {
         if (text.includes('-')) {
@@ -270,23 +418,14 @@ export const identifyProduct = async (base64Image: string): Promise<{ brand: str
         }
         return { brand: "", product: text, link: "" };
     }
-
     return { brand: "Unknown", product: "", link: "" };
 };
 
-
-// ============================================================================
-// 3. INGREDIENT VERIFICATION
-// ============================================================================
 export const verifyProductIngredients = async (productName: string): Promise<string> => {
-    const result = await callGemini([`Return the official ingredients list for "${productName}". Plain text only.`]);
-    return result?.content || "";
+    const result = await callAIWithFallback(`Return the official ingredients list for "${productName}". Plain text only.`, null, false);
+    return result.content || "";
 };
 
-
-// ============================================================================
-// 4. CHAT CO-PILOT
-// ============================================================================
 export const chatWithProduct = async (
     productName: string,
     ingredients: string,
@@ -295,18 +434,13 @@ export const chatWithProduct = async (
 ): Promise<string> => {
 
     const context = `Product: "${productName}". Ingredients: "${ingredients}". Answer accurately and concisely (<50 words).`;
-
-    // Construct history for context (simplified for generateContent)
     const historyText = chatHistory.map(m => `${m.role}: ${m.content}`).join('\n');
     const fullPrompt = `${context}\n\nHistory:\n${historyText}\n\nUser: ${question}`;
 
-    const result = await callGemini([fullPrompt]);
-    return result?.content || "I couldn't analyze that.";
+    const result = await callAIWithFallback(fullPrompt, null, false);
+    return result.content;
 };
 
-// ============================================================================
-// 5. NIVU VOICE ASSISTANT
-// ============================================================================
 export const chatWithNivu = async (
     userQuery: string,
     history: { role: string; content: string }[] = []
@@ -322,6 +456,6 @@ export const chatWithNivu = async (
     const historyText = history.map(m => `${m.role}: ${m.content}`).join('\n');
     const fullPrompt = `History:\n${historyText}\n\nUser: ${userQuery}`;
 
-    const result = await callGemini([fullPrompt], false, systemInstruction);
-    return result?.content || "I'm having trouble thinking clearly.";
+    const result = await callAIWithFallback(fullPrompt, null, false, systemInstruction);
+    return result.content;
 };
