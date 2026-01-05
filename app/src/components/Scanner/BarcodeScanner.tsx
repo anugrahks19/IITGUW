@@ -37,8 +37,8 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
                 facingMode: { ideal: "environment" },
                 width: { min: 640, ideal: 1920, max: 3840 }, // Request 4K/1080p for better lens usage
                 height: { min: 480, ideal: 1080, max: 2160 },
-                // @ts-ignore - Focus mode is experimental but supported in Chrome Android
-                advanced: [{ focusMode: "continuous" }] as any[]
+                // @ts-ignore - Focus mode is experimental but vital for mobile barcodes
+                advanced: [{ focusMode: "continuous", zoom: 2.0 }] as any[]
             },
             formatsToSupport: [
                 Html5QrcodeSupportedFormats.EAN_13,
@@ -183,56 +183,55 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
                 </div>
             )}
 
-            {/* TRACKING OVERLAY */}
+            {/* TRACKING OVERLAY (Always Visible) */}
             <AnimatePresence>
-                {/* Show if we have a rect OR if we have progress (fallback) */}
-                {scanProgress > 0 && (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 1.1 }}
-                        animate={{
-                            opacity: 1,
-                            scale: 1,
-                            // If tracking, use pixels. If fallback, use 0 and rely on CSS centering.
-                            x: trackingRect ? trackingRect.x : 0,
-                            y: trackingRect ? trackingRect.y : 0,
-                            width: trackingRect ? trackingRect.w : 250,
-                            height: trackingRect ? trackingRect.h : 150,
-                            left: trackingRect ? 0 : '50%',
-                            top: trackingRect ? 0 : '50%',
-                            translateX: trackingRect ? 0 : '-50%',
-                            translateY: trackingRect ? 0 : '-50%'
-                        }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        transition={{ duration: 0.1, ease: "easeOut" }}
-                        className="absolute z-20 pointer-events-none"
-                    >
-                        {/* Animated Border Box */}
-                        <div className="w-full h-full relative">
-                            {/* Base Border */}
-                            <div className="absolute inset-0 border-2 border-white/50 rounded-lg" />
+                <motion.div
+                    initial={{ opacity: 0, scale: 1.1 }}
+                    animate={{
+                        opacity: 1,
+                        scale: 1,
+                        // If tracking, snap to code. If not, center it.
+                        x: trackingRect ? trackingRect.x : 0,
+                        y: trackingRect ? trackingRect.y : 0,
+                        width: trackingRect ? trackingRect.w : 280, // Slightly larger default
+                        height: trackingRect ? trackingRect.h : 200,
+                        left: trackingRect ? 0 : '50%',
+                        top: trackingRect ? 0 : '50%',
+                        translateX: trackingRect ? 0 : '-50%',
+                        translateY: trackingRect ? 0 : '-50%'
+                    }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.1, ease: "easeOut" }}
+                    className="absolute z-20 pointer-events-none"
+                >
+                    {/* Animated Border Box */}
+                    <div className="w-full h-full relative">
+                        {/* Base Border (Always Visible Guide) */}
+                        <div className={`absolute inset-0 border-2 rounded-lg transition-colors duration-300 ${trackingRect ? 'border-brand-400' : 'border-white/30'}`} />
 
-                            {/* Progress Border (Fills up) */}
+                        {/* Progress Border (Fills up) */}
+                        {scanProgress > 0 && (
                             <motion.div
                                 className={`absolute inset-0 border-[4px] rounded-lg shadow-[0_0_20px_rgba(255,165,0,0.6)] ${scanProgress === 5 ? 'border-green-500 shadow-green-500/50' : 'border-brand-500'}`}
                                 initial={{ clipPath: 'inset(0 100% 0 0)' }}
                                 animate={{ clipPath: `inset(0 ${100 - (scanProgress * 20)}% 0 0)` }}
                                 transition={{ duration: 0.1 }}
                             />
+                        )}
 
-                            {/* Scanning Scanline inside the box */}
-                            <div className="absolute inset-0 overflow-hidden rounded-lg opacity-30">
-                                <div className={`w-full h-[50%] bg-gradient-to-b animate-scan-fast ${scanProgress === 5 ? 'from-green-500/0 via-green-500/50 to-green-500/0' : 'from-brand-500/0 via-brand-500/50 to-brand-500/0'}`} />
-                            </div>
+                        {/* Scanning Scanline inside the box */}
+                        <div className="absolute inset-0 overflow-hidden rounded-lg opacity-30">
+                            <div className={`w-full h-[50%] bg-gradient-to-b animate-scan-fast ${scanProgress === 5 ? 'from-green-500/0 via-green-500/50 to-green-500/0' : 'from-brand-500/0 via-brand-500/50 to-brand-500/0'}`} />
                         </div>
+                    </div>
 
-                        {/* Label */}
-                        <div className="absolute -top-6 left-0 right-0 flex justify-center">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${scanProgress === 5 ? 'bg-green-500 text-black' : 'bg-brand-500 text-black'}`}>
-                                {scanProgress === 5 ? "SCANNED!" : "DETECTING..."}
-                            </span>
-                        </div>
-                    </motion.div>
-                )}
+                    {/* Label */}
+                    <div className="absolute -top-8 left-0 right-0 flex justify-center">
+                        <span className={`text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-lg transition-colors duration-300 ${scanProgress === 5 ? 'bg-green-500 text-black' : scanProgress > 0 ? 'bg-brand-500 text-black' : 'bg-black/60 text-white border border-white/20'}`}>
+                            {scanProgress === 5 ? "SCANNED!" : scanProgress > 0 ? "DETECTING..." : "SCAN BARCODE"}
+                        </span>
+                    </div>
+                </motion.div>
             </AnimatePresence>
 
             {/* ERROR */}

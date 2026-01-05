@@ -248,6 +248,9 @@ const BSDetector: React.FC = () => {
 
 
 
+
+    const [forcedVoiceQuery, setForcedVoiceQuery] = React.useState<string | null>(null);
+
     // 💬 PROACTIVE CO-PILOT (The Nudge)
     React.useEffect(() => {
         if (state === 'RESULT' && scanData.analysis) {
@@ -377,7 +380,13 @@ const BSDetector: React.FC = () => {
                                         audio={false}
                                         ref={webcamRef}
                                         screenshotFormat="image/jpeg"
-                                        videoConstraints={{ facingMode: "environment" }}
+                                        videoConstraints={{
+                                            facingMode: "environment",
+                                            width: { ideal: 1920 },
+                                            height: { ideal: 1080 },
+                                            // @ts-ignore
+                                            advanced: [{ focusMode: "continuous" }]
+                                        }}
                                         className="absolute inset-0 w-full h-full object-cover"
                                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                         onUserMediaError={(err) => {
@@ -440,6 +449,8 @@ const BSDetector: React.FC = () => {
                             }}
                             onExplainMore={() => setShowProvenance(true)}
                             onScanIngredients={() => safeSwitchTo('SCAN_INGREDIENTS')}
+                            onAskQuestion={(q) => setForcedVoiceQuery(q)}
+                            userIntent={userIntent}
                         />
                     ) : state === 'RESULT' ? (
                         <div className="flex-1 flex items-center justify-center p-8 text-center text-slate-400">
@@ -474,16 +485,20 @@ const BSDetector: React.FC = () => {
                 />
 
                 {/* VOICE ASSISTANT (NIVU) */}
-                <VoiceAssistant onNavigate={(action) => {
-                    if (action === 'HOME') resetFlow();
-                    else if (action === 'SCAN_BARCODE') setState('SCAN_BARCODE');
-                    else if (action === 'SCAN_FRONT') safeSwitchTo('SCAN_FRONT');
-                    else if (action.startsWith('INTENT:')) {
-                        // 🧠 AI-NATIVE: Implicit Configuration
-                        const newIntent = action.split(':')[1] as UserIntent;
-                        setUserIntent(newIntent);
-                    }
-                }} />
+                <VoiceAssistant
+                    onNavigate={(action) => {
+                        if (action === 'HOME') resetFlow();
+                        else if (action === 'SCAN_BARCODE') setState('SCAN_BARCODE');
+                        else if (action === 'SCAN_FRONT') safeSwitchTo('SCAN_FRONT');
+                        else if (action.startsWith('INTENT:')) {
+                            // 🧠 AI-NATIVE: Implicit Configuration
+                            const newIntent = action.split(':')[1] as UserIntent;
+                            setUserIntent(newIntent);
+                        }
+                    }}
+                    forcedQuery={forcedVoiceQuery}
+                    onQueryHandled={() => setForcedVoiceQuery(null)}
+                />
 
             </main>
         </div>

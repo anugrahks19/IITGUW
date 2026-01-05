@@ -9,9 +9,11 @@ interface DecisionCardProps {
     onSwap: () => void;
     onExplainMore: () => void;
     onScanIngredients: () => void;
+    onAskQuestion: (q: string) => void;
+    userIntent: string;
 }
 
-export const DecisionCard: React.FC<DecisionCardProps> = ({ result, productName, onSwap, onExplainMore, onScanIngredients }) => {
+export const DecisionCard: React.FC<DecisionCardProps> = ({ result, productName, onSwap, onExplainMore, onScanIngredients, onAskQuestion, userIntent }) => {
     console.log("[DecisionCard] Rendered with result:", result);
     const isGood = result.verdict === 'HEALTHY';
     const isBad = result.verdict === 'AVOID' || result.verdict === 'UNHEALTHY';
@@ -70,30 +72,42 @@ export const DecisionCard: React.FC<DecisionCardProps> = ({ result, productName,
                 </motion.div>
             </div>
 
-            {/* 2. UNCERTAINTY BAR (Small, Ambient) */}
+            {/* 2. UNCERTAINTY (Humanized) */}
+            {/* 2. UNCERTAINTY BAR + Humanized Text */}
             <div className="px-8 mb-6">
+                {/* Visual Bar */}
                 <div className="flex items-center gap-2 text-xs text-slate-500 mb-1 font-mono uppercase tracking-widest">
                     <BarChart2 className="w-3 h-3" />
                     Confidence: {100 - Math.round(result.uncertainty.score)}%
                 </div>
-                <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                <div className="h-1 bg-slate-800 rounded-full overflow-hidden mb-3">
                     <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${100 - result.uncertainty.score}%` }}
                         className={`h-full ${100 - result.uncertainty.score > 80 ? 'bg-brand-500' : 'bg-yellow-500'}`}
                     />
                 </div>
+
+                {/* Humanized Note if needed */}
                 {result.uncertainty.score > 20 && (
-                    <p className="text-xs text-yellow-500/80 mt-1 italic">
-                        {result.uncertainty.reason || "Some text was hard to read."}
-                    </p>
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="bg-yellow-400/10 border border-yellow-400/20 rounded-lg px-3 py-2 text-center"
+                    >
+                        <p className="text-xs text-yellow-300 italic">
+                            "I had a bit of trouble reading the bottom of the label, but I'm confident about these main ingredients."
+                        </p>
+                    </motion.div>
                 )}
             </div>
 
             {/* 3. WHY & TRADEOFFS */}
             <div className="px-6 space-y-4">
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-sm">
-                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Why it matters</h3>
+                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">
+                        Why it matters for <span className="text-brand-400">{userIntent}</span>
+                    </h3>
                     <p className="text-sm text-slate-300 mb-4 leading-relaxed">
                         {result.explanation}
                     </p>
@@ -113,6 +127,24 @@ export const DecisionCard: React.FC<DecisionCardProps> = ({ result, productName,
                             </div>
                         ))}
                     </div>
+
+                    {/* FOLLOW UP QUESTIONS CHIPS */}
+                    {result.followUpQuestions && result.followUpQuestions.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-white/5">
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Ask Niva</p>
+                            <div className="flex flex-wrap gap-2">
+                                {result.followUpQuestions.slice(0, 3).map((q, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => onAskQuestion(q)}
+                                        className="text-xs text-brand-200 bg-brand-900/30 border border-brand-500/30 px-3 py-1.5 rounded-full hover:bg-brand-900/50 transition-colors text-left"
+                                    >
+                                        "{q}"
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* 4. SWAP ACTION (The MVP Feature) */}

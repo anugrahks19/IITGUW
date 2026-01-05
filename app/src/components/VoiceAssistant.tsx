@@ -4,6 +4,8 @@ import { chatWithNivu } from '../services/openrouter';
 
 interface VoiceProps {
     onNavigate: (action: string) => void;
+    forcedQuery?: string | null;
+    onQueryHandled?: () => void;
 }
 
 // 🛠️ Type Definitions for Native Web Speech API
@@ -14,11 +16,12 @@ interface IWindow extends Window {
 
 type Mode = 'SLEEP' | 'AWAKE';
 
-export const VoiceAssistant: React.FC<VoiceProps> = ({ onNavigate }) => {
+export const VoiceAssistant: React.FC<VoiceProps> = ({ onNavigate, forcedQuery, onQueryHandled }) => {
     // STATE
     const [mode, setMode] = useState<Mode>('SLEEP');
     const [isProcessing, setIsProcessing] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
+    const [history, setHistory] = useState<{ role: string; content: string }[]>([]);
 
     const [transcript, setTranscript] = useState('');
     const [response, setResponse] = useState('');
@@ -176,6 +179,21 @@ export const VoiceAssistant: React.FC<VoiceProps> = ({ onNavigate }) => {
         }, 1500);
     };
 
+    // ⚡ EXTERNAL TRIGGER EFFECT
+    useEffect(() => {
+        if (forcedQuery) {
+            console.log("⚡ Executing Forced Query:", forcedQuery);
+            // Wake up if sleeping
+            if (modeRef.current === 'SLEEP') goWake();
+
+            // Artificial delay to allow wake up
+            setTimeout(() => {
+                handleFinalInput(forcedQuery);
+                if (onQueryHandled) onQueryHandled();
+            }, 500);
+        }
+    }, [forcedQuery]);
+
     const handleFinalInput = async (text: string) => {
         // Commands
         if (text.toLowerCase().includes('stop')) {
@@ -190,47 +208,64 @@ export const VoiceAssistant: React.FC<VoiceProps> = ({ onNavigate }) => {
         // 🧠 LOCAL INTENT INFERENCE (Free & Fast)
         // Checks for keywords to verify intent without hitting LLM Rate Limits
         const lower = text.toLowerCase();
-        if (lower.includes('vegan') || lower.includes('plant based')) {
-            onNavigate('INTENT:Vegan');
-            speak("Setting intent to Vegan.");
-            return;
-        }
-        if (lower.includes('keto') || lower.includes('low carb')) {
-            onNavigate('INTENT:Keto');
-            speak("Setting intent to Keto.");
-            return;
-        }
-        if (lower.includes('sugar') || lower.includes('diabetic')) {
-            onNavigate('INTENT:Low Sugar');
-            speak("Setting intent to Low Sugar.");
-            return;
-        }
-        if (lower.includes('nut') || lower.includes('peanut') || lower.includes('allergy')) {
-            onNavigate('INTENT:Nut Allergy');
-            speak("Setting intent to Nut Allergy.");
-            return;
-        }
-        if (lower.includes('budget') || lower.includes('cheap')) {
-            onNavigate('INTENT:Budget');
-            speak("Setting intent to Budget.");
-            return;
-        }
-        if (lower.includes('general') || lower.includes('reset')) {
-            onNavigate('INTENT:General Health');
-            speak("Resetting to General Health.");
-            return;
+
+        // 🛡️ GUARD: If it's a question, DON'T change intent. Let Niva answer.
+        const isQuestion = /^(who|what|where|when|why|how|is|are|do|does|can|could|should|would|which)/i.test(text);
+
+        if (!isQuestion) {
+            if (lower.includes('vegan') || lower.includes('plant based')) {
+                onNavigate('INTENT:Vegan');
+                speak("Setting intent to Vegan.");
+                return;
+            }
+            if (lower.includes('keto') || lower.includes('low carb')) {
+                onNavigate('INTENT:Keto');
+                speak("Setting intent to Keto.");
+                return;
+            }
+            if (lower.includes('sugar') || lower.includes('diabetic')) {
+                onNavigate('INTENT:Low Sugar');
+                speak("Setting intent to Low Sugar.");
+                return;
+            }
+            if (lower.includes('nut') || lower.includes('peanut') || lower.includes('allergy')) {
+                onNavigate('INTENT:Nut Allergy');
+                speak("Setting intent to Nut Allergy.");
+                return;
+            }
+            if (lower.includes('budget') || lower.includes('cheap')) {
+                onNavigate('INTENT:Budget');
+                speak("Setting intent to Budget.");
+                return;
+            }
+            if (lower.includes('general') || lower.includes('reset')) {
+                onNavigate('INTENT:General Health');
+                speak("Resetting to General Health.");
+                return;
+            }
         }
 
         console.log("🧠 Processing:", text);
         setIsProcessing(true);
         isProcessingRef.current = true;
-        setTranscript(""); // Clear transcript during processing instead of showing "Thinking..."
+        setTranscript(text); // Show what is being processed even if forced
+
+        // update history with user query
+        const newHistory = [...history, { role: 'user', content: text }];
+        setHistory(newHistory);
 
         try {
-            const answer = await chatWithNivu(text);
+            const answer = await chatWithNivu(text, history); // Pass current history, NOT newHistory yet (or should we? openrouter says history param. usually we pass past history)
+            // Wait, chatWithNivu signature: (userQuery, history). 
+            // Ideally it should take the past history. The userQuery is the new one.
+            // So passing `history` (current state) is correct.
+
             setResponse(answer);
             speak(answer);
-            // Note: Timer is NOT reset here, it's reset when speech ENDS (in speak function)
+
+            // Append AI response to history
+            setHistory(prev => [...prev, { role: 'user', content: text }, { role: 'assistant', content: answer }]);
+
         } catch (e) {
             speak("I couldn't connect.");
         } finally {
