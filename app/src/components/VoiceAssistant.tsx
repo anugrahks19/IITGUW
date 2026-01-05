@@ -187,6 +187,40 @@ export const VoiceAssistant: React.FC<VoiceProps> = ({ onNavigate }) => {
             return;
         }
 
+        // 🧠 LOCAL INTENT INFERENCE (Free & Fast)
+        // Checks for keywords to verify intent without hitting LLM Rate Limits
+        const lower = text.toLowerCase();
+        if (lower.includes('vegan') || lower.includes('plant based')) {
+            onNavigate('INTENT:Vegan');
+            speak("Setting intent to Vegan.");
+            return;
+        }
+        if (lower.includes('keto') || lower.includes('low carb')) {
+            onNavigate('INTENT:Keto');
+            speak("Setting intent to Keto.");
+            return;
+        }
+        if (lower.includes('sugar') || lower.includes('diabetic')) {
+            onNavigate('INTENT:Low Sugar');
+            speak("Setting intent to Low Sugar.");
+            return;
+        }
+        if (lower.includes('nut') || lower.includes('peanut') || lower.includes('allergy')) {
+            onNavigate('INTENT:Nut Allergy');
+            speak("Setting intent to Nut Allergy.");
+            return;
+        }
+        if (lower.includes('budget') || lower.includes('cheap')) {
+            onNavigate('INTENT:Budget');
+            speak("Setting intent to Budget.");
+            return;
+        }
+        if (lower.includes('general') || lower.includes('reset')) {
+            onNavigate('INTENT:General Health');
+            speak("Resetting to General Health.");
+            return;
+        }
+
         console.log("🧠 Processing:", text);
         setIsProcessing(true);
         isProcessingRef.current = true;

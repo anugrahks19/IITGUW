@@ -248,6 +248,22 @@ const BSDetector: React.FC = () => {
 
 
 
+    // 💬 PROACTIVE CO-PILOT (The Nudge)
+    React.useEffect(() => {
+        if (state === 'RESULT' && scanData.analysis) {
+            if (scanData.analysis.verdict === 'AVOID' || scanData.analysis.verdict === 'UNHEALTHY') {
+                // Audio Feedback for Danger (Proactive)
+                // We add a small delay to not overlap with any potential voice confirmation
+                const timer = setTimeout(() => {
+                    const msg = new SpeechSynthesisUtterance(`Warning. This product is rated ${scanData.analysis?.verdict.toLowerCase()}.`);
+                    msg.rate = 1.1;
+                    window.speechSynthesis.speak(msg);
+                }, 1000);
+                return () => clearTimeout(timer);
+            }
+        }
+    }, [state, scanData.analysis]);
+
     return (
         <div className="min-h-screen bg-black text-slate-100 flex flex-col font-sans max-w-md mx-auto relative overflow-hidden">
             {/* Header */}
@@ -423,6 +439,7 @@ const BSDetector: React.FC = () => {
                                 window.open(`https://www.amazon.com/s?k=${encodeURIComponent(scanData.analysis?.swap_suggestion?.product_name || "Healthy Scan")}`, '_blank');
                             }}
                             onExplainMore={() => setShowProvenance(true)}
+                            onScanIngredients={() => safeSwitchTo('SCAN_INGREDIENTS')}
                         />
                     ) : state === 'RESULT' ? (
                         <div className="flex-1 flex items-center justify-center p-8 text-center text-slate-400">
@@ -461,7 +478,13 @@ const BSDetector: React.FC = () => {
                     if (action === 'HOME') resetFlow();
                     else if (action === 'SCAN_BARCODE') setState('SCAN_BARCODE');
                     else if (action === 'SCAN_FRONT') safeSwitchTo('SCAN_FRONT');
+                    else if (action.startsWith('INTENT:')) {
+                        // 🧠 AI-NATIVE: Implicit Configuration
+                        const newIntent = action.split(':')[1] as UserIntent;
+                        setUserIntent(newIntent);
+                    }
                 }} />
+
             </main>
         </div>
     );

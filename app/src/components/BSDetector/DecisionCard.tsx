@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { AlertTriangle, CheckCircle, XCircle, ArrowRight, RefreshCw, BarChart2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle, XCircle, ArrowRight, RefreshCw, BarChart2, ScanLine } from 'lucide-react';
 import type { AnalysisResult } from '../../services/openrouter';
 
 interface DecisionCardProps {
@@ -8,9 +8,10 @@ interface DecisionCardProps {
     productName: string;
     onSwap: () => void;
     onExplainMore: () => void;
+    onScanIngredients: () => void;
 }
 
-export const DecisionCard: React.FC<DecisionCardProps> = ({ result, productName, onSwap, onExplainMore }) => {
+export const DecisionCard: React.FC<DecisionCardProps> = ({ result, productName, onSwap, onExplainMore, onScanIngredients }) => {
     console.log("[DecisionCard] Rendered with result:", result);
     const isGood = result.verdict === 'HEALTHY';
     const isBad = result.verdict === 'AVOID' || result.verdict === 'UNHEALTHY';
@@ -53,6 +54,19 @@ export const DecisionCard: React.FC<DecisionCardProps> = ({ result, productName,
                     <p className="text-xl font-medium text-slate-200 leading-snug max-w-xs mx-auto">
                         {result.verdict_short}
                     </p>
+
+                    {/* SMART UNKNOWN HANDLING */}
+                    {productName.toLowerCase().includes('unknown') && (
+                        <motion.button
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            onClick={onScanIngredients}
+                            className="mt-6 px-6 py-3 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-full shadow-lg shadow-brand-500/20 flex items-center gap-2 animate-pulse"
+                        >
+                            <ScanLine className="w-4 h-4" />
+                            Scan Ingredients Label
+                        </motion.button>
+                    )}
                 </motion.div>
             </div>
 
