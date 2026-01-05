@@ -382,8 +382,7 @@ const BSDetector: React.FC = () => {
                                         screenshotFormat="image/jpeg"
                                         videoConstraints={{
                                             facingMode: "environment",
-                                            width: { ideal: 1920 },
-                                            height: { ideal: 1080 },
+                                            // 🛡️ FALLBACK: Don't force 1080p/4K if device can't handle it. Let browser choose native best.
                                             // @ts-ignore
                                             advanced: [{ focusMode: "continuous" }]
                                         }}
@@ -416,9 +415,12 @@ const BSDetector: React.FC = () => {
                                 </p>
 
                                 <div className="flex items-center gap-8">
-                                    {/* BARCODE TOGGLE */}
                                     <button
-                                        onClick={() => setState('SCAN_BARCODE')}
+                                        onClick={() => {
+                                            // 🛡️ SAFE SWITCH: Unmount Webcam -> Wait -> Mount Barcode Scanner
+                                            setState('TRANSITION');
+                                            setTimeout(() => setState('SCAN_BARCODE'), 800);
+                                        }}
                                         className="p-4 bg-slate-800 rounded-full text-white hover:bg-slate-700 transition-colors flex flex-col items-center gap-1"
                                     >
                                         <ScanLine className="w-6 h-6" />
