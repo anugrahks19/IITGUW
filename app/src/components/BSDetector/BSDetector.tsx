@@ -381,10 +381,8 @@ const BSDetector: React.FC = () => {
                                         ref={webcamRef}
                                         screenshotFormat="image/jpeg"
                                         videoConstraints={{
-                                            facingMode: "environment",
-                                            // 🛡️ FALLBACK: Don't force 1080p/4K if device can't handle it. Let browser choose native best.
-                                            // @ts-ignore
-                                            advanced: [{ focusMode: "continuous" }]
+                                            facingMode: "environment"
+                                            // 🛡️ SIMPLE MODE: No advanced constraints to prevent black screen on incompatible devices
                                         }}
                                         className="absolute inset-0 w-full h-full object-cover"
                                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}

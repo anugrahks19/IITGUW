@@ -34,11 +34,10 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
             useBarCodeDetectorIfSupported: true,
             aspectRatio: 1.0,
             videoConstraints: {
-                facingMode: { ideal: "environment" },
-                width: { min: 640, ideal: 1920, max: 3840 }, // Request 4K/1080p for better lens usage
-                height: { min: 480, ideal: 1080, max: 2160 },
-                // @ts-ignore - Focus mode is experimental but vital for mobile barcodes
-                advanced: [{ focusMode: "continuous", zoom: 2.0 }] as any[]
+                facingMode: { ideal: "environment" }
+                // 🛡️ MOBILE COMPATIBILITY MODE
+                // Removed all resolution/focus/zoom constraints.
+                // We let the browser/OS assume the "Best Available" native control.
             },
             formatsToSupport: [
                 Html5QrcodeSupportedFormats.EAN_13,
