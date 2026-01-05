@@ -49,6 +49,10 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
         };
 
         const startScanner = async () => {
+            // ⏳ DELAY START: Give the browser 500ms to release the camera from previous session/component.
+            // This prevents "NotAllowedError" (Race Condition) on unmount/remount.
+            await new Promise(r => setTimeout(r, 500));
+
             try {
                 // Check if running on HTTP (not localhost) - Common Mobile Issue
                 const isSecure = window.isSecureContext;
@@ -99,8 +103,8 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onResult, onStatusChang
                 );
             } catch (err: any) {
                 console.error("[BarcodeScanner] Start Error", err);
-                if (err?.name === "NotAllowedError") {
-                    setError("🚫 Camera Permission Denied. Please reset permissions.");
+                if (err?.name === "NotAllowedError" || err?.message?.includes("Permission denied")) {
+                    setError("🚫 permission denied. Tap address bar > Reset Permissions.");
                 } else if (err?.name === "NotFoundError") {
                     setError("📷 No Camera Found.");
                 } else {
