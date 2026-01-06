@@ -55,7 +55,6 @@ const ParticleRing: React.FC<{ active: boolean, color: string }> = ({ active, co
 const Nova: React.FC<{ triggerCommand?: string | null, onCommandHandled?: () => void }> = ({ triggerCommand, onCommandHandled }) => {
     const [status, setStatus] = useState<'SLEEPING' | 'LISTENING' | 'PROCESSING' | 'SPEAKING'>('SLEEPING');
     const [history, setHistory] = useState<{ role: string; content: string }[]>([]);
-    const [suggestions, setSuggestions] = useState<string[]>([]);
     const [sentiment, setSentiment] = useState<'neutral' | 'positive' | 'negative' | 'caution'>('neutral');
 
     // Refs
@@ -183,15 +182,10 @@ const Nova: React.FC<{ triggerCommand?: string | null, onCommandHandled?: () => 
 
     const processCommand = async (command: string) => {
         try {
-            const fullResponse = await chatWithNova(command, history);
-
-            // 🧠 PARSE RESPONSE (Split Speech | Chips)
-            const [speechText, ...chips] = fullResponse.split('|');
-            const cleanSpeech = speechText.trim();
-            const cleanChips = chips.map(c => c.trim()).filter(c => c.length > 0);
+            const response = await chatWithNova(command, history);
 
             // 🧠 SENTIMENT ANALYSIS (Simple Keyword Match)
-            const lower = cleanSpeech.toLowerCase();
+            const lower = response.toLowerCase();
             if (lower.includes('avoid') || lower.includes('unhealthy') || lower.includes('bad') || lower.includes('high sugar')) {
                 setSentiment('negative');
             } else if (lower.includes('healthy') || lower.includes('good') || lower.includes('great') || lower.includes('excellent')) {
@@ -202,9 +196,8 @@ const Nova: React.FC<{ triggerCommand?: string | null, onCommandHandled?: () => 
                 setSentiment('neutral');
             }
 
-            setSuggestions(cleanChips);
-            setHistory(prev => [...prev, { role: 'user', content: command }, { role: 'assistant', content: cleanSpeech }].slice(-10));
-            speak(cleanSpeech);
+            setHistory(prev => [...prev, { role: 'user', content: command }, { role: 'assistant', content: response }].slice(-10));
+            speak(response);
         } catch (error) {
             console.error(error);
             setStatus('LISTENING'); // Go back to listening if error
@@ -292,23 +285,7 @@ const Nova: React.FC<{ triggerCommand?: string | null, onCommandHandled?: () => 
                                     status === 'SPEAKING' ? 'ANSWERING...' : '...'}
                         </p>
 
-                        {/* SUGGESTION CHIPS (Silent Follow-up) */}
-                        {suggestions.length > 0 && status !== 'PROCESSING' && (
-                            <div className="flex flex-wrap justify-center gap-2 mt-3 pt-3 border-t border-white/10">
-                                {suggestions.map((chip, i) => (
-                                    <button
-                                        key={i}
-                                        onClick={() => {
-                                            setStatus('PROCESSING');
-                                            processCommand(chip);
-                                        }}
-                                        className="text-[10px] bg-white/10 hover:bg-white/20 text-cyan-200 px-2 py-1 rounded-full transition-colors border border-white/5"
-                                    >
-                                        {chip}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
+                        {/* SUGGESTION CHIPS REMOVED PER USER REQUEST */}
                     </motion.div>
                 )}
             </AnimatePresence>
