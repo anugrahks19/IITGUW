@@ -132,7 +132,7 @@ export const DecisionCard: React.FC<DecisionCardProps> = ({ result, productName,
                     {/* FOLLOW UP QUESTIONS CHIPS */}
                     {result.followUpQuestions && result.followUpQuestions.length > 0 && (
                         <div className="mt-4 pt-4 border-t border-white/5">
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Ask Niva</p>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Ask Nexus</p>
                             <div className="flex flex-wrap gap-2">
                                 {result.followUpQuestions.slice(0, 3).map((q, i) => (
                                     <button

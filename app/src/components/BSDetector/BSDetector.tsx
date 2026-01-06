@@ -248,7 +248,7 @@ const BSDetector: React.FC = () => {
 
 
 
-    const [cameraKey, setCameraKey] = useState(0); // Forcing Camera Remounts
+    const [nexusTrigger, setNexusTrigger] = useState<string | null>(null);
 
     // 💬 PROACTIVE CO-PILOT (The Nudge)
     React.useEffect(() => {
@@ -383,7 +383,8 @@ const BSDetector: React.FC = () => {
                                 {['SCAN_FRONT', 'SCAN_INGREDIENTS', 'SCAN_CROP', 'ANALYZING'].includes(state) && (
                                     <>
                                         <Webcam
-                                            key={cameraKey} // 🔑 FORCE REMOUNT ON ERROR/RETRY
+                                            // key={cameraKey} REMOVED
+
                                             audio={false}
                                             ref={webcamRef}
                                             screenshotFormat="image/jpeg"
@@ -399,18 +400,7 @@ const BSDetector: React.FC = () => {
                                             }}
                                         />
 
-                                        {/* MANUAL CAMERA RESET BUTTON (If Black Screen) */}
-                                        <div className="absolute top-4 right-4 z-50">
-                                            <button
-                                                onClick={() => {
-                                                    // Cycle the Key to force restart
-                                                    setCameraKey(prev => prev + 1);
-                                                }}
-                                                className="p-2 bg-black/50 rounded-full text-white/50 hover:text-white border border-white/10"
-                                            >
-                                                <RotateCcw className="w-4 h-4" />
-                                            </button>
-                                        </div>
+
                                     </>
                                 )}
 
@@ -471,12 +461,7 @@ const BSDetector: React.FC = () => {
                             onScanIngredients={() => safeSwitchTo('SCAN_INGREDIENTS')}
                             onAskQuestion={(q) => {
                                 console.log("Ask Nexus:", q);
-                                // Trigger Nexus to speak the answer (Simulated for Hackathon Demo)
-                                // In a real app, this would feed back into chatWithNova.
-                                // For now, we make Nexus acknowledge it.
-                                const msg = new SpeechSynthesisUtterance(`Good question. ${q} is important because it affects your insulin intervals.`);
-                                msg.rate = 1.1;
-                                window.speechSynthesis.speak(msg);
+                                setNexusTrigger(q);
                             }}
                             userIntent={userIntent}
                         />
@@ -515,7 +500,10 @@ const BSDetector: React.FC = () => {
 
             {/* NEXUS ORB (Dynamic Position) */}
             <div className={`absolute z-[60] pointer-events-auto transition-all duration-500 ease-in-out ${state === 'RESULT' ? 'top-6 left-6' : 'bottom-20 left-8'}`}>
-                <Nova />
+                <Nova
+                    triggerCommand={nexusTrigger}
+                    onCommandHandled={() => setNexusTrigger(null)}
+                />
             </div>
         </div>
     );

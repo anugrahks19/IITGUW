@@ -52,7 +52,7 @@ const ParticleRing: React.FC<{ active: boolean, color: string }> = ({ active, co
     );
 };
 
-const Nova: React.FC = () => {
+const Nova: React.FC<{ triggerCommand?: string | null, onCommandHandled?: () => void }> = ({ triggerCommand, onCommandHandled }) => {
     const [status, setStatus] = useState<'SLEEPING' | 'LISTENING' | 'PROCESSING' | 'SPEAKING'>('SLEEPING');
     const [history, setHistory] = useState<{ role: string; content: string }[]>([]);
 
@@ -169,6 +169,15 @@ const Nova: React.FC = () => {
         }
     }, [status]);
 
+    // Handle External Triggers (e.g., Chips)
+    useEffect(() => {
+        if (triggerCommand && status !== 'PROCESSING' && status !== 'SPEAKING') {
+            console.log("[Nexus] Triggered Externally:", triggerCommand);
+            setStatus('PROCESSING');
+            processCommand(triggerCommand);
+            onCommandHandled?.();
+        }
+    }, [triggerCommand]);
 
     const processCommand = async (command: string) => {
         try {
