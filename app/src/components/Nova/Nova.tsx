@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, Brain, MessageSquare } from 'lucide-react';
 import { chatWithNova } from '../../services/openrouter';
 
-const WAKE_WORD = "nexus";
+
 
 // Web Speech API Types
 interface IWindow extends Window {
@@ -54,34 +54,42 @@ const ParticleRing: React.FC<{ active: boolean, color: string }> = ({ active, co
 
 const Nova: React.FC = () => {
     const [status, setStatus] = useState<'SLEEPING' | 'LISTENING' | 'PROCESSING' | 'SPEAKING'>('SLEEPING');
-    const [transcript, setTranscript] = useState("");
     const [history, setHistory] = useState<{ role: string; content: string }[]>([]);
 
     // Refs
     const recognition = useRef<any>(null);
     const isRunning = useRef(true);
-    const watchdogTimer = useRef<any>(null);
+    const silenceTimer = useRef<any>(null);
     const inactivityTimer = useRef<any>(null);
-    const hasGreeted = useRef(false);
+    const transcriptBuffer = useRef(""); // To accumulate speech over 5s
 
-    // Activity reset for auto-sleep
+    // 15s Inactivity Timer (Go to Sleep if no response)
     const resetInactivityTimer = () => {
         if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-        if (status !== 'SLEEPING') {
+        if (status === 'LISTENING') {
             inactivityTimer.current = setTimeout(() => {
-                console.log("[Nexus] Auto-sleep.");
+                console.log("[Nexus] No response for 15s. Sleeping.");
                 setStatus('SLEEPING');
-            }, 20000);
+            }, 15000);
         }
     };
 
-    const kickWatchdog = () => {
-        if (watchdogTimer.current) clearTimeout(watchdogTimer.current);
-        watchdogTimer.current = setTimeout(() => {
-            if (isRunning.current && status === 'LISTENING') {
-                console.log("[Nexus] Watchdog: No input for 8s (Silent)");
-            }
-        }, 8000);
+    // 5s Silence Timer (User stopped speaking -> Process)
+    const resetSilenceTimer = () => {
+        if (silenceTimer.current) clearTimeout(silenceTimer.current);
+
+        // Only set timer if we have something in the buffer
+        if (transcriptBuffer.current.trim().length > 0 && status === 'LISTENING') {
+            silenceTimer.current = setTimeout(async () => {
+                console.log("[Nexus] 5s Silence Detected. Processing...");
+                const fullCommand = transcriptBuffer.current.trim();
+                if (fullCommand) {
+                    setStatus('PROCESSING');
+                    transcriptBuffer.current = ""; // Clear buffer
+                    await processCommand(fullCommand);
+                }
+            }, 5000);
+        }
     };
 
     useEffect(() => {
@@ -95,72 +103,72 @@ const Nova: React.FC = () => {
         recognizer.interimResults = true;
         recognizer.lang = 'en-US';
 
-        recognizer.onstart = () => { kickWatchdog(); };
+        recognizer.onstart = () => {
+            console.log("[Nexus] Recognition Started");
+        };
 
-        recognizer.onresult = async (event: any) => {
-            kickWatchdog();
+        recognizer.onresult = (event: any) => {
+            // IMPORTANT: Reset sleep timer on ANY noise
             resetInactivityTimer();
+            if (status !== 'LISTENING') return;
 
-            let finalTranscript = '';
-            let interimTranscript = '';
+            let interim = '';
+            let newFinal = '';
 
             for (let i = event.resultIndex; i < event.results.length; ++i) {
                 if (event.results[i].isFinal) {
-                    finalTranscript += event.results[i][0].transcript;
+                    newFinal += event.results[i][0].transcript;
                 } else {
-                    interimTranscript += event.results[i][0].transcript;
+                    interim += event.results[i][0].transcript;
                 }
             }
 
-            if (interimTranscript && status !== 'SLEEPING') {
-                setTranscript(interimTranscript);
+            // Append final bits to our main buffer
+            if (newFinal) {
+                transcriptBuffer.current += " " + newFinal;
+                console.log("[Nexus] Buffered Final:", newFinal);
             }
 
-            if (finalTranscript) {
-                const text = finalTranscript.trim();
-                const lower = text.toLowerCase();
-
-                if (lower.includes(WAKE_WORD)) {
-                    setStatus('LISTENING');
-                    setTranscript("Listening...");
-
-                    const command = lower.split(WAKE_WORD)[1] || "";
-
-                    // 1. FIRST TIME INTRO
-                    if (!hasGreeted.current) {
-                        hasGreeted.current = true;
-                        speak("Hello, I am Nexus. I am listening.");
-                        return;
-                    }
-
-                    // 2. WAIT FOR ME TO SAY
-                    if (command.trim().length > 10) {
-                        setStatus('PROCESSING');
-                        await processCommand(command.trim());
-                    }
-                } else if (status === 'LISTENING') {
-                    // Fallback: If we are already LISTENING, any text is a command
-                    setStatus('PROCESSING');
-                    await processCommand(text);
-                }
+            // Update UI with (Buffer + Interim) so user sees live feedback
+            const liveText = (transcriptBuffer.current + " " + interim).trim();
+            if (liveText) {
+                // Reset the "Done Speaking" timer since we are getting results
+                resetSilenceTimer();
             }
         };
 
         recognizer.onend = () => {
-            if (isRunning.current) {
+            // If it stops randomly, restart it if we are supposed to be running
+            if (isRunning.current && status !== 'SLEEPING') {
+                console.log("[Nexus] Restarting Recognizer...");
                 setTimeout(() => { try { recognizer.start(); } catch (e) { } }, 100);
             }
         };
 
-        recognizer.onerror = () => { };
+        recognizer.onerror = (e: any) => {
+            console.warn("[Nexus] Error:", e.error);
+        };
 
         recognition.current = recognizer;
-        try { recognizer.start(); } catch (e) { }
 
         return () => {
             isRunning.current = false;
+            recognizer.stop();
         };
+    }, [status]); // Re-bind if status changes (specifically for logic checks)
+
+    // Manage Recognizer State based on Status
+    useEffect(() => {
+        if (status === 'SLEEPING') {
+            try { recognition.current?.stop(); } catch (e) { }
+            transcriptBuffer.current = "";
+        } else if (status === 'LISTENING') {
+            isRunning.current = true;
+            try { recognition.current?.start(); } catch (e) { }
+            resetInactivityTimer(); // Start the 15s countdown immediately
+        }
     }, [status]);
+
 
     const processCommand = async (command: string) => {
         try {
@@ -168,7 +176,8 @@ const Nova: React.FC = () => {
             setHistory(prev => [...prev, { role: 'user', content: command }, { role: 'assistant', content: response }].slice(-10));
             speak(response);
         } catch (error) {
-            setStatus('SLEEPING');
+            console.error(error);
+            setStatus('LISTENING'); // Go back to listening if error
         }
     };
 
@@ -181,8 +190,10 @@ const Nova: React.FC = () => {
         utter.rate = 1.1;
 
         utter.onend = () => {
+            // Cycle back to listening for follow-up
             setStatus('LISTENING');
-            resetInactivityTimer();
+            transcriptBuffer.current = "";
+            resetInactivityTimer(); // Start 15s wait for follow-up
         };
 
         window.speechSynthesis.speak(utter);
@@ -234,13 +245,15 @@ const Nova: React.FC = () => {
             <AnimatePresence>
                 {status !== 'SLEEPING' && (
                     <motion.div
-                        initial={{ opacity: 0, y: -10, x: "-50%", scale: 0.8 }}
-                        animate={{ opacity: 1, y: 10, x: "-50%", scale: 1 }}
-                        exit={{ opacity: 0, x: "-50%", scale: 0.8 }}
-                        className="absolute top-full mt-2 left-1/2 whitespace-nowrap bg-black/80 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 z-50"
+                        initial={{ opacity: 0, y: 20, x: "-50%", scale: 0.8 }}
+                        animate={{ opacity: 1, y: 0, x: "-50%", scale: 1 }}
+                        exit={{ opacity: 0, y: 10, x: "-50%", scale: 0.8 }}
+                        className="fixed bottom-32 left-1/2 -translate-x-1/2 w-auto min-w-[150px] max-w-[85vw] bg-black/90 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/10 z-[100] shadow-2xl flex flex-col items-center justify-center"
                     >
-                        <p className="text-[10px] text-cyan-400 font-mono tracking-wider">
-                            {status === 'PROCESSING' ? 'THINKING...' : transcript || 'LISTENING'}
+                        <p className="text-xs text-cyan-400 font-mono text-center leading-relaxed break-words whitespace-pre-wrap">
+                            {status === 'LISTENING' ? 'LISTENING...' :
+                                status === 'PROCESSING' ? 'THINKING...' :
+                                    status === 'SPEAKING' ? 'ANSWERING...' : '...'}
                         </p>
                     </motion.div>
                 )}
