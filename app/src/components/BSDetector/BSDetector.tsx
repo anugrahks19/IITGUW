@@ -281,7 +281,7 @@ const BSDetector: React.FC = () => {
 
 
                 {/* RIGHT: Retry Button */}
-                {state !== 'IDLE' && state !== 'RESULT' && (
+                {state !== 'IDLE' && (
                     <div className="absolute right-6 top-6 pointer-events-auto z-20">
                         <button onClick={resetFlow} className="p-3 bg-black/60 backdrop-blur-xl rounded-full border border-white/10 text-slate-300 shadow-lg hover:bg-black/80 transition-colors">
                             <RotateCcw className="w-4 h-4 text-slate-300" />
@@ -513,8 +513,8 @@ const BSDetector: React.FC = () => {
                 />
             </main>
 
-            {/* NEXUS ORB (Bottom Left) */}
-            <div className="absolute bottom-20 left-8 z-[60] pointer-events-auto">
+            {/* NEXUS ORB (Dynamic Position) */}
+            <div className={`absolute z-[60] pointer-events-auto transition-all duration-500 ease-in-out ${state === 'RESULT' ? 'top-6 left-6' : 'bottom-20 left-8'}`}>
                 <Nova />
             </div>
         </div>
