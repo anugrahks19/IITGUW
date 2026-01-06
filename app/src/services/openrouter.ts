@@ -12,6 +12,9 @@ if (!GOOGLE_API_KEY) console.warn("⚠️ Missing VITE_GOOGLE_API_KEY");
 if (!OPENROUTER_API_KEY) console.warn("⚠️ Missing VITE_OPENROUTER_API_KEY");
 if (!GROQ_API_KEY) console.warn("⚠️ Missing VITE_GROQ_API_KEY");
 
+// 🧠 STATE & MEMORY
+let lastAnalysis: { product: string, verdict: string } | null = null;
+
 // ============================================================================
 // 🧠 MODEL LISTS & PROVIDERS
 // ============================================================================
@@ -352,6 +355,7 @@ STRICT JSON STRUCTURE:
   "sources_cited": ["Generic Knowledge"]
 }
 DO NOT RETURN MARKDOWN. DO NOT USE \`\`\`json. JUST RETURN RAW JSON.
+${lastAnalysis ? `\nIMPORTANT: Compare this product to the previous scan "${lastAnalysis.product}" which was rated "${lastAnalysis.verdict}". State clearly if this is better or worse.` : ""}
 `;
 
 export const analyzeImageWithAI = async (base64Image: string, productName?: string, webIngredients: string = "", userIntent: string = "General Health"): Promise<AnalysisResult> => {
@@ -363,9 +367,23 @@ export const analyzeImageWithAI = async (base64Image: string, productName?: stri
     let effectiveIntent = userIntent;
 
     // Quick heuristic: If "Baby" or "Infant" is cleared detected in OCR (webIngredients), switch to Safety.
-    if (webIngredients.toLowerCase().includes('baby') || webIngredients.toLowerCase().includes('infant')) {
+    const lowerIng = webIngredients.toLowerCase();
+    const lowerName = (productName || "").toLowerCase();
+    const combinedText = lowerIng + " " + lowerName;
+
+    if (combinedText.includes('baby') || combinedText.includes('infant')) {
         console.log("👶 Magic Trick: Auto-detected Baby Product. Switching Intent to 'Infant Safety'.");
         effectiveIntent = "Infant Safety & Allergens";
+    }
+    // Phase 1: Gym / Supplement Magic Trick
+    else if (/(whey|creatine|protein|pre-workout|bcaa|glutamine|muscle|isolate|gym)/i.test(combinedText)) {
+        console.log("💪 Magic Trick: Auto-detected Gym Product. Switching Intent to 'Muscle Building'.");
+        effectiveIntent = "Muscle Building, Recovery & Digestibility";
+    }
+    // Phase 1: Pharma / Medicine Magic Trick
+    else if (/(syrup|tablet|capsule|dosage|mg\/ml|relief|cough|cold|ibuprofen|paracetamol)/i.test(combinedText)) {
+        console.log("💊 Magic Trick: Auto-detected Medicine. Switching Intent to 'Safety & Contraindications'.");
+        effectiveIntent = "Medical Safety, Dosage & Contraindications";
     }
 
     const promptText = MASTER_PROMPT_TEXT(productName || "Unknown", webIngredients, effectiveIntent);
@@ -387,6 +405,10 @@ export const analyzeImageWithAI = async (base64Image: string, productName?: stri
 
         if (!parsed.verdict) throw new Error("Invalid Schema");
         parsed.model_used = result.model; // Inject model name
+
+        // Update Memory
+        lastAnalysis = { product: productName || "Product", verdict: parsed.verdict };
+
         return parsed;
     } catch (e) {
         console.error("JSON Parse Error", result.content);
@@ -493,6 +515,21 @@ You specialize exclusively in:
 - Brand and product comparisons
 - Cultural and regional food context (especially Indian foods)
 - On-the-spot decision help (store, restaurant, café, home cooking)
+
+Your goal is to help users make quick, informed decisions about what to eat or drink.
+    
+CRITICAL OUTPUT FORMAT:
+1. Answer naturally (spoken).
+2. At the very end, append exactly 2-3 short follow-up questions separated by a pipe symbol "|".
+3. Format: [Spoken Answer] | [Chip 1] | [Chip 2]
+
+Examples:
+- User: "Is Coke healthy?"
+- You: "Coke is very high in sugar and has no nutritional value. Regular consumption can lead to insulin spikes. | Is Diet Coke better? | Healthy soda alternatives"
+
+TONE:
+- Calm, confident, and slightly opinionated (like a nutritionist friend).
+- Be concise. Voice interfaces require brevity.
 
 VOICE-FIRST BEHAVIOR
 - Speak as if responding through voice (short sentences, natural pauses implied).

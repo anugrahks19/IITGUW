@@ -55,6 +55,8 @@ const ParticleRing: React.FC<{ active: boolean, color: string }> = ({ active, co
 const Nova: React.FC<{ triggerCommand?: string | null, onCommandHandled?: () => void }> = ({ triggerCommand, onCommandHandled }) => {
     const [status, setStatus] = useState<'SLEEPING' | 'LISTENING' | 'PROCESSING' | 'SPEAKING'>('SLEEPING');
     const [history, setHistory] = useState<{ role: string; content: string }[]>([]);
+    const [suggestions, setSuggestions] = useState<string[]>([]);
+    const [sentiment, setSentiment] = useState<'neutral' | 'positive' | 'negative' | 'caution'>('neutral');
 
     // Refs
     const recognition = useRef<any>(null);
@@ -181,9 +183,28 @@ const Nova: React.FC<{ triggerCommand?: string | null, onCommandHandled?: () => 
 
     const processCommand = async (command: string) => {
         try {
-            const response = await chatWithNova(command, history);
-            setHistory(prev => [...prev, { role: 'user', content: command }, { role: 'assistant', content: response }].slice(-10));
-            speak(response);
+            const fullResponse = await chatWithNova(command, history);
+
+            // 🧠 PARSE RESPONSE (Split Speech | Chips)
+            const [speechText, ...chips] = fullResponse.split('|');
+            const cleanSpeech = speechText.trim();
+            const cleanChips = chips.map(c => c.trim()).filter(c => c.length > 0);
+
+            // 🧠 SENTIMENT ANALYSIS (Simple Keyword Match)
+            const lower = cleanSpeech.toLowerCase();
+            if (lower.includes('avoid') || lower.includes('unhealthy') || lower.includes('bad') || lower.includes('high sugar')) {
+                setSentiment('negative');
+            } else if (lower.includes('healthy') || lower.includes('good') || lower.includes('great') || lower.includes('excellent')) {
+                setSentiment('positive');
+            } else if (lower.includes('moderate') || lower.includes('caution') || lower.includes('limit')) {
+                setSentiment('caution');
+            } else {
+                setSentiment('neutral');
+            }
+
+            setSuggestions(cleanChips);
+            setHistory(prev => [...prev, { role: 'user', content: command }, { role: 'assistant', content: cleanSpeech }].slice(-10));
+            speak(cleanSpeech);
         } catch (error) {
             console.error(error);
             setStatus('LISTENING'); // Go back to listening if error
@@ -236,9 +257,15 @@ const Nova: React.FC<{ triggerCommand?: string | null, onCommandHandled?: () => 
                     icon: <Brain className="w-4 h-4 text-white animate-spin" />
                 };
             case 'SPEAKING':
+                // Dynamic Color based on Sentiment
+                let speakColor = 'border-cyan-300 bg-cyan-400';
+                if (sentiment === 'positive') speakColor = 'border-green-300 bg-green-400 shadow-[0_0_40px_rgba(74,222,128,0.8)]';
+                if (sentiment === 'negative') speakColor = 'border-red-300 bg-red-400 shadow-[0_0_40px_rgba(248,113,113,0.8)]';
+                if (sentiment === 'caution') speakColor = 'border-yellow-300 bg-yellow-400 shadow-[0_0_40px_rgba(250,204,21,0.8)]';
+
                 return {
-                    color: 'border-cyan-300 bg-cyan-400',
-                    ring: 'border-cyan-300',
+                    color: speakColor,
+                    ring: sentiment === 'positive' ? 'border-green-300' : sentiment === 'negative' ? 'border-red-300' : 'border-cyan-300',
                     shadow: 'shadow-[0_0_40px_rgba(103,232,249,0.8)]',
                     scale: [1, 1.2, 1], // Heartbeat/Talking Animation handled in motion prop
                     icon: <MessageSquare className="w-4 h-4 text-white" />
@@ -264,6 +291,24 @@ const Nova: React.FC<{ triggerCommand?: string | null, onCommandHandled?: () => 
                                 status === 'PROCESSING' ? 'THINKING...' :
                                     status === 'SPEAKING' ? 'ANSWERING...' : '...'}
                         </p>
+
+                        {/* SUGGESTION CHIPS (Silent Follow-up) */}
+                        {suggestions.length > 0 && status !== 'PROCESSING' && (
+                            <div className="flex flex-wrap justify-center gap-2 mt-3 pt-3 border-t border-white/10">
+                                {suggestions.map((chip, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => {
+                                            setStatus('PROCESSING');
+                                            processCommand(chip);
+                                        }}
+                                        className="text-[10px] bg-white/10 hover:bg-white/20 text-cyan-200 px-2 py-1 rounded-full transition-colors border border-white/5"
+                                    >
+                                        {chip}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </motion.div>
                 )}
             </AnimatePresence>
