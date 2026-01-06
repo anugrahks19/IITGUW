@@ -278,9 +278,7 @@ const BSDetector: React.FC = () => {
                 ) : <div />}
 
                 {/* CENTER: Nexus (Always On) */}
-                <div className="absolute left-1/2 top-6 -translate-x-1/2 pointer-events-auto z-30">
-                    <Nova />
-                </div>
+
 
                 {/* RIGHT: Retry Button */}
                 {state !== 'IDLE' && state !== 'RESULT' && (
@@ -514,6 +512,11 @@ const BSDetector: React.FC = () => {
                     result={scanData.analysis!}
                 />
             </main>
+
+            {/* NEXUS ORB (Bottom Left) */}
+            <div className="absolute bottom-20 left-8 z-[60] pointer-events-auto">
+                <Nova />
+            </div>
         </div>
     );
 };

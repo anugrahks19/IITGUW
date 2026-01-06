@@ -62,6 +62,7 @@ const Nova: React.FC = () => {
     const isRunning = useRef(true);
     const watchdogTimer = useRef<any>(null);
     const inactivityTimer = useRef<any>(null);
+    const hasGreeted = useRef(false);
 
     // Activity reset for auto-sleep
     const resetInactivityTimer = () => {
@@ -77,11 +78,7 @@ const Nova: React.FC = () => {
     const kickWatchdog = () => {
         if (watchdogTimer.current) clearTimeout(watchdogTimer.current);
         watchdogTimer.current = setTimeout(() => {
-            // Only check if it's supposed to be running but presumably dead
             if (isRunning.current && status === 'LISTENING') {
-                // If we are LISTENING but haven't got results in 8s, maybe check?
-                // Actually, for now, let's just do nothing. 
-                // The issue was the explicit STOP which caused the DING.
                 console.log("[Nexus] Watchdog: No input for 8s (Silent)");
             }
         }, 8000);
@@ -121,17 +118,28 @@ const Nova: React.FC = () => {
 
             if (finalTranscript) {
                 const text = finalTranscript.trim();
+                const lower = text.toLowerCase();
 
-                if (text.toLowerCase().includes(WAKE_WORD)) {
+                if (lower.includes(WAKE_WORD)) {
                     setStatus('LISTENING');
                     setTranscript("Listening...");
 
-                    const command = text.toLowerCase().split(WAKE_WORD)[1] || "";
-                    if (command.trim().length > 2) {
+                    const command = lower.split(WAKE_WORD)[1] || "";
+
+                    // 1. FIRST TIME INTRO
+                    if (!hasGreeted.current) {
+                        hasGreeted.current = true;
+                        speak("Hello, I am Nexus. I am listening.");
+                        return;
+                    }
+
+                    // 2. WAIT FOR ME TO SAY
+                    if (command.trim().length > 10) {
                         setStatus('PROCESSING');
                         await processCommand(command.trim());
                     }
                 } else if (status === 'LISTENING') {
+                    // Fallback: If we are already LISTENING, any text is a command
                     setStatus('PROCESSING');
                     await processCommand(text);
                 }
@@ -144,14 +152,13 @@ const Nova: React.FC = () => {
             }
         };
 
-        recognizer.onerror = () => { }; // Ignore errors
+        recognizer.onerror = () => { };
 
         recognition.current = recognizer;
         try { recognizer.start(); } catch (e) { }
 
         return () => {
             isRunning.current = false;
-            // Clear timers
         };
     }, [status]);
 
@@ -161,7 +168,6 @@ const Nova: React.FC = () => {
             setHistory(prev => [...prev, { role: 'user', content: command }, { role: 'assistant', content: response }].slice(-10));
             speak(response);
         } catch (error) {
-            speak("System error.");
             setStatus('SLEEPING');
         }
     };
@@ -186,9 +192,6 @@ const Nova: React.FC = () => {
     const getOrbState = () => {
         switch (status) {
             case 'SLEEPING':
-            // "Same color but particles ain't working" -> Dim Cyan, visible border
-            case 'SLEEPING':
-                // Offline but BRIGHT (User Request)
                 return {
                     color: 'border-cyan-400 bg-cyan-950',
                     ring: 'border-cyan-400/20',
@@ -197,7 +200,6 @@ const Nova: React.FC = () => {
                     icon: <Zap className="w-4 h-4 text-cyan-400" />
                 };
             case 'LISTENING':
-                // Online with particles
                 return {
                     color: 'border-cyan-400 bg-cyan-500',
                     ring: 'border-cyan-400',
@@ -214,7 +216,6 @@ const Nova: React.FC = () => {
                     icon: <Brain className="w-4 h-4 text-white animate-spin" />
                 };
             case 'SPEAKING':
-                // "Another animation as if its speaking" -> Pulse + Bright
                 return {
                     color: 'border-cyan-300 bg-cyan-400',
                     ring: 'border-cyan-300',
@@ -258,9 +259,9 @@ const Nova: React.FC = () => {
                     duration: 0.4, // Fast talking pulse
                     ease: "easeInOut"
                 } : { type: "spring", stiffness: 300, damping: 20 }}
-                className={`w-10 h-10 rounded-full flex items-center justify-center relative z-10 border-2 ${ui.color} ${ui.shadow} transition-colors duration-300 cursor-pointer`}
+                className={`w-16 h-16 rounded-full flex items-center justify-center relative z-10 border-2 ${ui.color} ${ui.shadow} transition-colors duration-300 cursor-pointer`}
                 onClick={() => {
-                    if (status === 'SLEEPING') { setStatus('LISTENING'); speak("Online."); }
+                    if (status === 'SLEEPING') { setStatus('LISTENING'); /* Silent Wake */ }
                     else { setStatus('SLEEPING'); }
                 }}
             >
