@@ -1,73 +1,62 @@
-# React + TypeScript + Vite
+# BiteVue (Powered by Nexus) 🧠🍎
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**The AI-Native Food & Health Co-Pilot.**
 
-Currently, two official plugins are available:
+BiteVue is not just a barcode scanner; it is a **reasoning engine** that overlays intelligence onto the physical world. It transforms static product data into actionable, voice-first health insights, acting as a personal nutritionist.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+## 🔬 The Physics Behind It (How It Works)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+BiteVue operates on a **Multimodal AI Pipeline** that fuses Computer Vision, Optical Character Recognition (OCR), and Large Language Models (LLMs) into a seamless "See-Think-Speak" loop.
 
-## Expanding the ESLint configuration
+### 1. The See-Think-Speak Loop
+1.  **Sensory Input (The Eye):**
+    *   **Barcode Scanning:** Uses `html5-qrcode` to capture EAN/UPC codes.
+    *   **OpenFoodFacts API:** Fetches raw nutritional data (ingredients, nutriscore, additives).
+    *   **Computer Vision (Nexus Eye):** If no barcode matches, the AI analyzes the live camera feed directly to identify packaging types (e.g., "Supplement Tub" vs. "Medicine Bottle").
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+2.  **Cognitive Processing (The Brain):**
+    *   **Magic Intents (Pattern Matching):** Before even calling the LLM, the system runs heuristic regex checks.
+        *   *Detected "Whey"?* -> Switches context to **Muscle Building**.
+        *   *Detected "Syrup"?* -> Switches context to **Pharma Safety**.
+    *   **LLM Analysis (OpenRouter/Groq):** The raw data + user context (e.g., "I am diabetic") is sent to a high-speed LLM (Gemini Flash or Llama 3).
+    *   **Stateful Memory:** The system maintains a `lastAnalysis` state. It compares the current scan's vector against the previous one to generate comparative insights (e.g., *"This is better than the soda you just scanned"*).
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+3.  **Interaction (The Voice):**
+    *   **Nexus Persona:** The AI response is synthesized into speech using the Web Speech API.
+    *   **Visual Feedback:** The "Orb" changes color (Green=Healthy, Red=Avoid) based on sentiment analysis of the generated text, providing instant "lizard brain" feedback.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+---
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## 🚀 Key Features
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 1. 🧠 Magic Intents (Context Awareness)
+BiteVue doesn't wait for you to ask. It infers your intent from the object itself.
+*   **Gym Mode:** Scan a protein powder, and it instantly talks about amino acids and recovery.
+*   **Safety Mode:** Scan a medicine, and it warns about dosage and allergies.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### 2. 💭 Comparative Memory
+Most apps are "stateless" (they forget immediately). Nexus has **Object Permanence**.
+*   It remembers your previous scan.
+*   It actively compares products: *"This yogurt has less sugar than the bar you looked at earlier."*
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### 3. 🗣️ AI-Native Voice Interaction
+*   **Hands-Free:** Designed for the kitchen or grocery store.
+*   **Silence Detection:** Smart listening that knows when you've finished speaking.
+*   **Natural Conversation:** Ask follow-ups like *"Is it keto?"* or *"Any side effects?"* naturally.
+
+---
+
+## 🛠️ Technology Stack
+
+*   **Frontend:** React 18, TypeScript, Vite
+*   **AI Orchestration:** OpenRouter (Gemini / Llama 3), Groq (Fast Inference)
+*   **Computer Vision:** `react-webcam`, Canvas API
+*   **State Management:** React Hooks + Ref-based Memory
+*   **Styling:** TailwindCSS, Framer Motion (Animations)
+*   **Deployment:** Vercel (Edge Network)
+
+---
+
+> *"The goal is to move from 'Data Retrieval' to 'Cognitive Offloading'. We don't just show you the sugar content; we decide if it's worth eating."*
