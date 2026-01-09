@@ -19,10 +19,11 @@ Create a `.env` file in the root directory if it doesn't exist:
 ```
 VITE_OPENROUTER_API_KEY=your_api_key_here
 ```
-> **Note**: The app uses a "Hybrid" AI approach. Basic commands work offline, but "Healthy?" checks require this key.
+> **Note**: The app uses a "Hybrid" AI approach. Basic commands work offline, but "Healthy?" checks require these keys.
+> **Important**: If you see "AI models are busy" or get no response, your API key might be out of credits. Replace `VITE_OPENROUTER_API_KEY`, `VITE_GOOGLE_API_KEY`, or `VITE_GROQ_API_KEY` in `.env` with a new one from your account.
 
 ### 4. Running the App
-Start the development server:![alt text](image.png)
+Start the development server:
 ```powershell
 npm run dev
 ```
@@ -32,9 +33,9 @@ Access the app at `http://localhost:5173` (or the URL shown in terminal).
 
 ## 📱 Features & Usage
 
-### 1. Niva Voice Assistant (Hands-Free) 🎙️
-Niva is your always-on AI co-pilot.
-- **Activation**: Just say **"Hey Nivu"** (or "Hey Niva").
+### 1. Nexus Voice Assistant (Hands-Free) 🎙️
+Nexus is your always-on AI co-pilot.
+- **Activation**: Just say **"Hey Nexus"**.
 - **Visuals**: A glowing orb appears in the bottom-left when listening.
 - **Commands**:
   - *"Scan barcode"* -> Opens scanner.
@@ -60,6 +61,6 @@ Niva is your always-on AI co-pilot.
 
 ## 🛠️ Troubleshooting
 
-- **Microphone issues**: Ensure your browser has permission to access the Microphone. If Niva isn't responding, look for a small red button in the corner to retry permissions.
-- **AI Errors**: Check your network connection and ensure your `VITE_OPENROUTER_API_KEY` is valid and has credits.
+- **Microphone issues**: Ensure your browser has permission to access the Microphone. If Nexus isn't responding, look for a small red button in the corner to retry permissions.
+- **AI Errors / "Busy"**: Check your network. If persistent, your API key is likely out of credits. Create a fresh key at OpenRouter.ai / Groq console and update `.env`.
 - **Camera Black Screen**: Check if another app is using the camera. Refresh the page.

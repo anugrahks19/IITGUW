@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, Volume2, Loader2 } from 'lucide-react';
-import { chatWithNivu } from '../services/openrouter';
+import { chatWithNexus } from '../services/openrouter';
 
 interface VoiceProps {
     onNavigate: (action: string) => void;
@@ -142,7 +142,7 @@ export const VoiceAssistant: React.FC<VoiceProps> = ({ onNavigate, forcedQuery, 
 
         // GREETING LOGIC
         if (!hasGreetedRef.current) {
-            speak("Hey there, I am Nivu, your personal assistant.");
+            speak("Hey there, I am Nexus, your personal assistant.");
             hasGreetedRef.current = true;
         } else {
             speak("I'm listening.");
@@ -209,7 +209,7 @@ export const VoiceAssistant: React.FC<VoiceProps> = ({ onNavigate, forcedQuery, 
         // Checks for keywords to verify intent without hitting LLM Rate Limits
         const lower = text.toLowerCase();
 
-        // 🛡️ GUARD: If it's a question, DON'T change intent. Let Niva answer.
+        // 🛡️ GUARD: If it's a question, DON'T change intent. Let Nexus answer.
         const isQuestion = /^(who|what|where|when|why|how|is|are|do|does|can|could|should|would|which)/i.test(text);
 
         if (!isQuestion) {
@@ -255,7 +255,7 @@ export const VoiceAssistant: React.FC<VoiceProps> = ({ onNavigate, forcedQuery, 
         setHistory(newHistory);
 
         try {
-            const answer = await chatWithNivu(text, history); // Pass current history, NOT newHistory yet (or should we? openrouter says history param. usually we pass past history)
+            const answer = await chatWithNexus(text, history); // Pass current history, NOT newHistory yet (or should we? openrouter says history param. usually we pass past history)
             // Wait, chatWithNivu signature: (userQuery, history). 
             // Ideally it should take the past history. The userQuery is the new one.
             // So passing `history` (current state) is correct.

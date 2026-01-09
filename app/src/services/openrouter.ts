@@ -474,11 +474,11 @@ export const chatWithProduct = async (
     return result.content;
 };
 
-export const chatWithNivu = async (
+export const chatWithNexus = async (
     userQuery: string,
     history: { role: string; content: string }[] = []
 ): Promise<string> => {
-    const systemInstruction = `You are Nivu, a calm, human-like food decision co-pilot.
+    const systemInstruction = `You are Nexus, a calm, human-like food decision co-pilot.
     CORE RULES:
     1. Speak in SHORT, confident sentences.
     2. Give clear judgment (Good/Okay/Avoid) first.
